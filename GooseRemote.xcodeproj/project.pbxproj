@@ -1,0 +1,400 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000000000000000000001 /* GooseRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000101 /* GooseRemoteApp.swift */; };
+		A00000000000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000102 /* AppDelegate.swift */; };
+		A00000000000000000000003 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000103 /* AppModel.swift */; };
+		A00000000000000000000004 /* AppRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000104 /* AppRoute.swift */; };
+		A00000000000000000000005 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000105 /* AppEnvironment.swift */; };
+		A00000000000000000000006 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000106 /* JSONValue.swift */; };
+		A00000000000000000000007 /* ISO8601DateParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000107 /* ISO8601DateParsing.swift */; };
+		A00000000000000000000008 /* ACPError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000108 /* ACPError.swift */; };
+		A00000000000000000000009 /* ACPContentBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000109 /* ACPContentBlock.swift */; };
+		A00000000000000000000010 /* ACPNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000110 /* ACPNotification.swift */; };
+		A00000000000000000000011 /* ACPRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000111 /* ACPRequest.swift */; };
+		A00000000000000000000012 /* ACPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000112 /* ACPTransport.swift */; };
+		A00000000000000000000013 /* DirectWebSocketTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000113 /* DirectWebSocketTransport.swift */; };
+		A00000000000000000000014 /* RemoteConnectionConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000114 /* RemoteConnectionConfig.swift */; };
+		A00000000000000000000015 /* RemoteConnectionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000115 /* RemoteConnectionProvider.swift */; };
+		A00000000000000000000016 /* SSHStdioTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000116 /* SSHStdioTransport.swift */; };
+		A00000000000000000000017 /* SSHForwardedWebSocketTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000117 /* SSHForwardedWebSocketTransport.swift */; };
+		A00000000000000000000018 /* ACPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000118 /* ACPClient.swift */; };
+		A00000000000000000000019 /* SessionSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000119 /* SessionSummary.swift */; };
+		A00000000000000000000020 /* SessionListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000120 /* SessionListModel.swift */; };
+		A00000000000000000000021 /* SessionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000121 /* SessionListView.swift */; };
+		A00000000000000000000022 /* SessionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000122 /* SessionRowView.swift */; };
+		A00000000000000000000023 /* ChatContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000123 /* ChatContent.swift */; };
+		A00000000000000000000024 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000124 /* ChatMessage.swift */; };
+		A00000000000000000000025 /* ChatTranscriptReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000125 /* ChatTranscriptReducer.swift */; };
+		A00000000000000000000026 /* ChatSessionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000126 /* ChatSessionModel.swift */; };
+		A00000000000000000000027 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000127 /* ChatView.swift */; };
+		A00000000000000000000028 /* MessageBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000128 /* MessageBubbleView.swift */; };
+		A00000000000000000000029 /* ToolActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000129 /* ToolActivityView.swift */; };
+		A00000000000000000000030 /* ComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000130 /* ComposerView.swift */; };
+		A00000000000000000000031 /* NotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000131 /* NotificationCoordinator.swift */; };
+		A00000000000000000000032 /* DemoBackgroundKeepaliveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000132 /* DemoBackgroundKeepaliveService.swift */; };
+		A00000000000000000000033 /* NotificationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000133 /* NotificationViewController.swift */; };
+		A00000000000000000000034 /* ChatTranscriptReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000134 /* ChatTranscriptReducerTests.swift */; };
+		A00000000000000000000035 /* JSONValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000135 /* JSONValueTests.swift */; };
+		A00000000000000000000036 /* NotificationContentExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A00000000000000000000142 /* NotificationContentExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C00000000000000000000001 /* ContinuedProcessingDemoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000101 /* ContinuedProcessingDemoService.swift */; };
+		B00000000000000000000001 /* SSHSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000101 /* SSHSupport.swift */; };
+		B00000000000000000000002 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000201 /* NIOSSH */; };
+		B00000000000000000000003 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000202 /* NIOCore */; };
+		B00000000000000000000004 /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000203 /* NIOPosix */; };
+		B00000000000000000000005 /* SSHForwardedWebSocketEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000102 /* SSHForwardedWebSocketEndpointTests.swift */; };
+		B00000000000000000000006 /* SSHStdioTransportIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000103 /* SSHStdioTransportIntegrationTests.swift */; };
+		B00000000000000000000007 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000201 /* NIOSSH */; };
+		B00000000000000000000008 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000202 /* NIOCore */; };
+		B00000000000000000000009 /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000203 /* NIOPosix */; };
+		B00000000000000000000010 /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000204 /* Crypto */; };
+		B00000000000000000000011 /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000204 /* Crypto */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A00000000000000000000040 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000200 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000300;
+			remoteInfo = GooseRemote;
+		};
+		A00000000000000000000041 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000200 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000302;
+			remoteInfo = NotificationContentExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A00000000000000000000050 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A00000000000000000000036 /* NotificationContentExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		A00000000000000000000100 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00000000000000000000101 /* GooseRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GooseRemoteApp.swift; sourceTree = "<group>"; };
+		A00000000000000000000102 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A00000000000000000000103 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		A00000000000000000000104 /* AppRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRoute.swift; sourceTree = "<group>"; };
+		A00000000000000000000105 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		A00000000000000000000106 /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
+		A00000000000000000000107 /* ISO8601DateParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISO8601DateParsing.swift; sourceTree = "<group>"; };
+		A00000000000000000000108 /* ACPError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPError.swift; sourceTree = "<group>"; };
+		A00000000000000000000109 /* ACPContentBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPContentBlock.swift; sourceTree = "<group>"; };
+		A00000000000000000000110 /* ACPNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPNotification.swift; sourceTree = "<group>"; };
+		A00000000000000000000111 /* ACPRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPRequest.swift; sourceTree = "<group>"; };
+		A00000000000000000000112 /* ACPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPTransport.swift; sourceTree = "<group>"; };
+		A00000000000000000000113 /* DirectWebSocketTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectWebSocketTransport.swift; sourceTree = "<group>"; };
+		A00000000000000000000114 /* RemoteConnectionConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConnectionConfig.swift; sourceTree = "<group>"; };
+		A00000000000000000000115 /* RemoteConnectionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConnectionProvider.swift; sourceTree = "<group>"; };
+		A00000000000000000000116 /* SSHStdioTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHStdioTransport.swift; sourceTree = "<group>"; };
+		A00000000000000000000117 /* SSHForwardedWebSocketTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHForwardedWebSocketTransport.swift; sourceTree = "<group>"; };
+		A00000000000000000000118 /* ACPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPClient.swift; sourceTree = "<group>"; };
+		A00000000000000000000119 /* SessionSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSummary.swift; sourceTree = "<group>"; };
+		A00000000000000000000120 /* SessionListModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListModel.swift; sourceTree = "<group>"; };
+		A00000000000000000000121 /* SessionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListView.swift; sourceTree = "<group>"; };
+		A00000000000000000000122 /* SessionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRowView.swift; sourceTree = "<group>"; };
+		A00000000000000000000123 /* ChatContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatContent.swift; sourceTree = "<group>"; };
+		A00000000000000000000124 /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
+		A00000000000000000000125 /* ChatTranscriptReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTranscriptReducer.swift; sourceTree = "<group>"; };
+		A00000000000000000000126 /* ChatSessionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSessionModel.swift; sourceTree = "<group>"; };
+		A00000000000000000000127 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		A00000000000000000000128 /* MessageBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubbleView.swift; sourceTree = "<group>"; };
+		A00000000000000000000129 /* ToolActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolActivityView.swift; sourceTree = "<group>"; };
+		A00000000000000000000130 /* ComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposerView.swift; sourceTree = "<group>"; };
+		A00000000000000000000131 /* NotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinator.swift; sourceTree = "<group>"; };
+		A00000000000000000000132 /* DemoBackgroundKeepaliveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoBackgroundKeepaliveService.swift; sourceTree = "<group>"; };
+		A00000000000000000000133 /* NotificationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationViewController.swift; sourceTree = "<group>"; };
+		A00000000000000000000134 /* ChatTranscriptReducerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTranscriptReducerTests.swift; sourceTree = "<group>"; };
+		A00000000000000000000135 /* JSONValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValueTests.swift; sourceTree = "<group>"; };
+		A00000000000000000000136 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00000000000000000000140 /* GooseRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GooseRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000141 /* GooseRemoteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GooseRemoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000142 /* NotificationContentExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationContentExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C00000000000000000000101 /* ContinuedProcessingDemoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinuedProcessingDemoService.swift; sourceTree = "<group>"; };
+		B00000000000000000000101 /* SSHSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHSupport.swift; sourceTree = "<group>"; };
+		B00000000000000000000102 /* SSHForwardedWebSocketEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHForwardedWebSocketEndpointTests.swift; sourceTree = "<group>"; };
+		B00000000000000000000103 /* SSHStdioTransportIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHStdioTransportIntegrationTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00000000000000000000150 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B00000000000000000000002 /* NIOSSH in Frameworks */, B00000000000000000000003 /* NIOCore in Frameworks */, B00000000000000000000004 /* NIOPosix in Frameworks */, B00000000000000000000011 /* Crypto in Frameworks */); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000151 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (B00000000000000000000007 /* NIOSSH in Frameworks */, B00000000000000000000008 /* NIOCore in Frameworks */, B00000000000000000000009 /* NIOPosix in Frameworks */, B00000000000000000000010 /* Crypto in Frameworks */); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000152 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00000000000000000000160 = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000161 /* GooseRemote */,
+				A00000000000000000000169 /* NotificationContentExtension */,
+				A00000000000000000000170 /* GooseRemoteTests */,
+				A00000000000000000000180 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A00000000000000000000161 /* GooseRemote */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000162 /* App */,
+				A00000000000000000000163 /* ACP */,
+				A00000000000000000000164 /* Connection */,
+				A00000000000000000000165 /* Sessions */,
+				A00000000000000000000166 /* Chat */,
+				A00000000000000000000167 /* Notifications */,
+				A00000000000000000000168 /* Background */,
+				A00000000000000000000173 /* Support */,
+			);
+			path = GooseRemote;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000162 /* App */ = {isa = PBXGroup; children = (A00000000000000000000100, A00000000000000000000101, A00000000000000000000102, A00000000000000000000103, A00000000000000000000104, A00000000000000000000105); path = App; sourceTree = "<group>"; };
+		A00000000000000000000163 /* ACP */ = {isa = PBXGroup; children = (A00000000000000000000108, A00000000000000000000109, A00000000000000000000110, A00000000000000000000111, A00000000000000000000118); path = ACP; sourceTree = "<group>"; };
+		A00000000000000000000164 /* Connection */ = {isa = PBXGroup; children = (A00000000000000000000112, A00000000000000000000113, A00000000000000000000114, A00000000000000000000115, A00000000000000000000116, A00000000000000000000117, B00000000000000000000101); path = Connection; sourceTree = "<group>"; };
+		A00000000000000000000165 /* Sessions */ = {isa = PBXGroup; children = (A00000000000000000000119, A00000000000000000000120, A00000000000000000000121, A00000000000000000000122); path = Sessions; sourceTree = "<group>"; };
+		A00000000000000000000166 /* Chat */ = {isa = PBXGroup; children = (A00000000000000000000123, A00000000000000000000124, A00000000000000000000125, A00000000000000000000126, A00000000000000000000127, A00000000000000000000128, A00000000000000000000129, A00000000000000000000130); path = Chat; sourceTree = "<group>"; };
+		A00000000000000000000167 /* Notifications */ = {isa = PBXGroup; children = (A00000000000000000000131); path = Notifications; sourceTree = "<group>"; };
+		A00000000000000000000168 /* Background */ = {isa = PBXGroup; children = (A00000000000000000000132, C00000000000000000000101); path = Background; sourceTree = "<group>"; };
+		A00000000000000000000169 /* NotificationContentExtension */ = {isa = PBXGroup; children = (A00000000000000000000136, A00000000000000000000133); path = NotificationContentExtension; sourceTree = "<group>"; };
+		A00000000000000000000170 /* GooseRemoteTests */ = {isa = PBXGroup; children = (A00000000000000000000134, A00000000000000000000135, B00000000000000000000102, B00000000000000000000103); path = GooseRemoteTests; sourceTree = "<group>"; };
+		A00000000000000000000173 /* Support */ = {isa = PBXGroup; children = (A00000000000000000000106, A00000000000000000000107); path = Support; sourceTree = "<group>"; };
+		A00000000000000000000180 /* Products */ = {isa = PBXGroup; children = (A00000000000000000000140, A00000000000000000000141, A00000000000000000000142); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00000000000000000000300 /* GooseRemote */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000400 /* Build configuration list for PBXNativeTarget "GooseRemote" */;
+			buildPhases = (
+				A00000000000000000000190 /* Sources */,
+				A00000000000000000000150 /* Frameworks */,
+				A00000000000000000000050 /* Embed App Extensions */,
+			);
+			buildRules = ();
+			dependencies = (
+				A00000000000000000000042 /* PBXTargetDependency */,
+			);
+			name = GooseRemote;
+			packageProductDependencies = (
+				B00000000000000000000201 /* NIOSSH */,
+				B00000000000000000000202 /* NIOCore */,
+				B00000000000000000000203 /* NIOPosix */,
+				B00000000000000000000204 /* Crypto */,
+			);
+			productName = GooseRemote;
+			productReference = A00000000000000000000140 /* GooseRemote.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A00000000000000000000301 /* GooseRemoteTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000401 /* Build configuration list for PBXNativeTarget "GooseRemoteTests" */;
+			buildPhases = (
+				A00000000000000000000191 /* Sources */,
+				A00000000000000000000151 /* Frameworks */,
+			);
+			buildRules = ();
+			dependencies = (
+				A00000000000000000000043 /* PBXTargetDependency */,
+			);
+			name = GooseRemoteTests;
+			packageProductDependencies = (
+				B00000000000000000000201 /* NIOSSH */,
+				B00000000000000000000202 /* NIOCore */,
+				B00000000000000000000203 /* NIOPosix */,
+				B00000000000000000000204 /* Crypto */,
+			);
+			productName = GooseRemoteTests;
+			productReference = A00000000000000000000141 /* GooseRemoteTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A00000000000000000000302 /* NotificationContentExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000402 /* Build configuration list for PBXNativeTarget "NotificationContentExtension" */;
+			buildPhases = (
+				A00000000000000000000192 /* Sources */,
+				A00000000000000000000152 /* Frameworks */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = NotificationContentExtension;
+			productName = NotificationContentExtension;
+			productReference = A00000000000000000000142 /* NotificationContentExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00000000000000000000200 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2650;
+				LastUpgradeCheck = 2650;
+				TargetAttributes = {
+					A00000000000000000000300 = {CreatedOnToolsVersion = 26.5;};
+					A00000000000000000000301 = {CreatedOnToolsVersion = 26.5; TestTargetID = A00000000000000000000300;};
+					A00000000000000000000302 = {CreatedOnToolsVersion = 26.5;};
+				};
+			};
+			buildConfigurationList = A00000000000000000000403 /* Build configuration list for PBXProject "GooseRemote" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = A00000000000000000000160;
+			packageReferences = (
+				B00000000000000000000301 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */,
+				B00000000000000000000302 /* XCRemoteSwiftPackageReference "swift-nio" */,
+				B00000000000000000000303 /* XCRemoteSwiftPackageReference "swift-crypto" */,
+			);
+			productRefGroup = A00000000000000000000180 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A00000000000000000000300 /* GooseRemote */,
+				A00000000000000000000301 /* GooseRemoteTests */,
+				A00000000000000000000302 /* NotificationContentExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A00000000000000000000190 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000001,
+				A00000000000000000000002,
+				A00000000000000000000003,
+				A00000000000000000000004,
+				A00000000000000000000005,
+				A00000000000000000000006,
+				A00000000000000000000007,
+				A00000000000000000000008,
+				A00000000000000000000009,
+				A00000000000000000000010,
+				A00000000000000000000011,
+				A00000000000000000000012,
+				A00000000000000000000013,
+				A00000000000000000000014,
+				A00000000000000000000015,
+				A00000000000000000000016,
+				A00000000000000000000017,
+				B00000000000000000000001,
+				A00000000000000000000018,
+				A00000000000000000000019,
+				A00000000000000000000020,
+				A00000000000000000000021,
+				A00000000000000000000022,
+				A00000000000000000000023,
+				A00000000000000000000024,
+				A00000000000000000000025,
+				A00000000000000000000026,
+				A00000000000000000000027,
+				A00000000000000000000028,
+				A00000000000000000000029,
+				A00000000000000000000030,
+				A00000000000000000000031,
+				A00000000000000000000032,
+				C00000000000000000000001,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000000000000000000191 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000034, A00000000000000000000035, B00000000000000000000005, B00000000000000000000006); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000192 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000033); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A00000000000000000000042 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A00000000000000000000302 /* NotificationContentExtension */; targetProxy = A00000000000000000000041 /* PBXContainerItemProxy */; };
+		A00000000000000000000043 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A00000000000000000000300 /* GooseRemote */; targetProxy = A00000000000000000000040 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A00000000000000000000500 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ANALYZER_NONNULL = YES; CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE; CLANG_CXX_LANGUAGE_STANDARD = "gnu++20"; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_ENABLE_OBJC_WEAK = YES; CLANG_WARN_DOCUMENTATION_COMMENTS = YES; CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = dwarf; DEVELOPMENT_TEAM = ""; ENABLE_STRICT_OBJC_MSGSEND = YES; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_DYNAMIC_NO_PIC = NO; GCC_NO_COMMON_BLOCKS = YES; GCC_OPTIMIZATION_LEVEL = 0; GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)"); IPHONEOS_DEPLOYMENT_TARGET = 26.0; MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE; ONLY_ACTIVE_ARCH = YES; SDKROOT = iphoneos; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_STRICT_CONCURRENCY = minimal; SWIFT_VERSION = 6.0;}; name = Debug; };
+		A00000000000000000000501 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ANALYZER_NONNULL = YES; CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE; CLANG_CXX_LANGUAGE_STANDARD = "gnu++20"; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_ENABLE_OBJC_WEAK = YES; CLANG_WARN_DOCUMENTATION_COMMENTS = YES; CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; DEVELOPMENT_TEAM = ""; ENABLE_NS_ASSERTIONS = NO; ENABLE_STRICT_OBJC_MSGSEND = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_NO_COMMON_BLOCKS = YES; IPHONEOS_DEPLOYMENT_TARGET = 26.0; MTL_ENABLE_DEBUG_INFO = NO; SDKROOT = iphoneos; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_STRICT_CONCURRENCY = minimal; SWIFT_VERSION = 6.0; VALIDATE_PRODUCT = YES;}; name = Release; };
+		A00000000000000000000502 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = GooseRemote/App/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemote; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Debug; };
+		A00000000000000000000503 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = GooseRemote/App/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemote; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Release; };
+		A00000000000000000000504 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemoteTests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GooseRemote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GooseRemote";}; name = Debug; };
+		A00000000000000000000505 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemoteTests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GooseRemote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GooseRemote";}; name = Release; };
+		A00000000000000000000506 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = NotificationContentExtension/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemote.NotificationContentExtension; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Debug; };
+		A00000000000000000000507 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = NotificationContentExtension/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemote.NotificationContentExtension; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A00000000000000000000400 /* Build configuration list for PBXNativeTarget "GooseRemote" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000502, A00000000000000000000503); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000000401 /* Build configuration list for PBXNativeTarget "GooseRemoteTests" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000504, A00000000000000000000505); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000000402 /* Build configuration list for PBXNativeTarget "NotificationContentExtension" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000506, A00000000000000000000507); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000000403 /* Build configuration list for PBXProject "GooseRemote" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000500, A00000000000000000000501); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B00000000000000000000301 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio-ssh.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.13.0;
+			};
+		};
+		B00000000000000000000302 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.81.0;
+			};
+		};
+		B00000000000000000000303 /* XCRemoteSwiftPackageReference "swift-crypto" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-crypto.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B00000000000000000000201 /* NIOSSH */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B00000000000000000000301 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */;
+			productName = NIOSSH;
+		};
+		B00000000000000000000202 /* NIOCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B00000000000000000000302 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOCore;
+		};
+		B00000000000000000000203 /* NIOPosix */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B00000000000000000000302 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOPosix;
+		};
+		B00000000000000000000204 /* Crypto */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B00000000000000000000303 /* XCRemoteSwiftPackageReference "swift-crypto" */;
+			productName = Crypto;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A00000000000000000000200 /* Project object */;
+}
