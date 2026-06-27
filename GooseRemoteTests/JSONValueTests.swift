@@ -98,4 +98,46 @@ final class JSONValueTests: XCTestCase {
         XCTAssertEqual(config.defaultCWD, "/tmp/project")
         XCTAssertTrue(config.demoBackgroundKeepaliveEnabled)
     }
+
+    func testDemoConfigPersistsSSHEnvironmentForManualRelaunch() throws {
+        let suiteName = "GooseRemoteTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let store = DemoConnectionSettingsStore(defaults: defaults)
+        defer {
+            store.clear()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        _ = RemoteConnectionConfig.demo(
+            environment: [
+                "GOOSE_REMOTE_SSH_HOST": "127.0.0.1",
+                "GOOSE_REMOTE_SSH_PORT": "2222",
+                "GOOSE_REMOTE_SSH_USERNAME": "demo",
+                "GOOSE_REMOTE_SSH_PASSWORD": "secret",
+                "GOOSE_REMOTE_SSH_COMMAND": "goose acp"
+            ],
+            settingsStore: store
+        )
+
+        let relaunchedConfig = RemoteConnectionConfig.demo(
+            environment: [:],
+            settingsStore: store
+        )
+
+        switch relaunchedConfig.mode {
+        case .sshStdio(let ssh):
+            XCTAssertEqual(ssh.host, "127.0.0.1")
+            XCTAssertEqual(ssh.port, 2222)
+            XCTAssertEqual(ssh.username, "demo")
+            XCTAssertEqual(ssh.command, "goose acp")
+            switch ssh.authentication {
+            case .password(let password):
+                XCTAssertEqual(password, "secret")
+            default:
+                XCTFail("Expected persisted password auth")
+            }
+        default:
+            XCTFail("Expected persisted SSH stdio mode")
+        }
+    }
 }

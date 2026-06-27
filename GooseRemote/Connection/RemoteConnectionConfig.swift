@@ -13,9 +13,26 @@ struct RemoteConnectionConfig: Sendable {
     var defaultCWD: String
     var demoBackgroundKeepaliveEnabled: Bool
 
-    static let demo = demo(environment: ProcessInfo.processInfo.environment)
+    static let demo = demo(
+        environment: ProcessInfo.processInfo.environment,
+        settingsStore: .standard
+    )
 
     static func demo(environment: [String: String]) -> RemoteConnectionConfig {
+        makeDemoConfig(environment: environment)
+    }
+
+    static func demo(
+        environment: [String: String],
+        settingsStore: DemoConnectionSettingsStore
+    ) -> RemoteConnectionConfig {
+        let mergedEnvironment = settingsStore.environmentByMergingSavedSettings(with: environment)
+        let config = makeDemoConfig(environment: mergedEnvironment)
+        settingsStore.saveExplicitSettings(from: environment)
+        return config
+    }
+
+    private static func makeDemoConfig(environment: [String: String]) -> RemoteConnectionConfig {
         let defaultCWD = environment["GOOSE_REMOTE_DEFAULT_CWD"] ?? "~"
         let keepaliveEnabled = environment["GOOSE_REMOTE_BACKGROUND_KEEPALIVE"] == "1"
         let mode = environment["GOOSE_REMOTE_TRANSPORT"].map(normalizeMode) ?? "sshstdio"
@@ -137,4 +154,85 @@ enum SSHAuthentication: Sendable {
     case none
     case password(String)
     case privateKey(NIOSSHPrivateKey)
+}
+
+struct DemoConnectionSettingsStore: @unchecked Sendable {
+    static let standard = DemoConnectionSettingsStore(defaults: .standard)
+
+    private static let prefix = "GooseRemote.demoConnection."
+    private static let keys = [
+        "GOOSE_REMOTE_TRANSPORT",
+        "GOOSE_REMOTE_ACP_URL",
+        "GOOSE_REMOTE_REMOTE_ACP_URL",
+        "GOOSE_REMOTE_DEFAULT_CWD",
+        "GOOSE_REMOTE_BACKGROUND_KEEPALIVE",
+        "GOOSE_REMOTE_SSH_HOST",
+        "GOOSE_REMOTE_SSH_PORT",
+        "GOOSE_REMOTE_SSH_USERNAME",
+        "GOOSE_REMOTE_SSH_PASSWORD",
+        "GOOSE_REMOTE_SSH_COMMAND",
+        "GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_PEM_BASE64",
+        "GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64"
+    ]
+
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+    }
+
+    func environmentByMergingSavedSettings(with environment: [String: String]) -> [String: String] {
+        var merged = savedSettings()
+        for (key, value) in environment where Self.keys.contains(key) {
+            merged[key] = value
+        }
+        if environmentContainsSSHSettings(environment), environment["GOOSE_REMOTE_TRANSPORT"] == nil {
+            merged["GOOSE_REMOTE_TRANSPORT"] = "ssh-stdio"
+        }
+        return merged
+    }
+
+    func saveExplicitSettings(from environment: [String: String]) {
+        var hasAnyExplicitSetting = false
+        for key in Self.keys {
+            guard let value = environment[key] else { continue }
+            hasAnyExplicitSetting = true
+            defaults.set(value, forKey: storageKey(key))
+        }
+
+        if environmentContainsSSHSettings(environment), environment["GOOSE_REMOTE_TRANSPORT"] == nil {
+            hasAnyExplicitSetting = true
+            defaults.set("ssh-stdio", forKey: storageKey("GOOSE_REMOTE_TRANSPORT"))
+        }
+
+        if hasAnyExplicitSetting {
+            defaults.synchronize()
+        }
+    }
+
+    func clear() {
+        for key in Self.keys {
+            defaults.removeObject(forKey: storageKey(key))
+        }
+    }
+
+    private func savedSettings() -> [String: String] {
+        var settings: [String: String] = [:]
+        for key in Self.keys {
+            if let value = defaults.string(forKey: storageKey(key)) {
+                settings[key] = value
+            }
+        }
+        return settings
+    }
+
+    private func environmentContainsSSHSettings(_ environment: [String: String]) -> Bool {
+        environment.keys.contains { key in
+            key.hasPrefix("GOOSE_REMOTE_SSH_")
+        }
+    }
+
+    private func storageKey(_ key: String) -> String {
+        Self.prefix + key
+    }
 }

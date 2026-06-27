@@ -23,6 +23,7 @@ Implemented toward `docs/prototype-plan.md`:
   - `GOOSE_REMOTE_TRANSPORT=ssh-stdio` runs the complete app through SSH stdio
   - `GOOSE_REMOTE_TRANSPORT=direct-websocket` opts into the local direct WebSocket development shortcut
   - `GOOSE_REMOTE_SSH_COMMAND` defaults to `goose acp`
+  - explicit launch-environment connection settings are saved for the prototype so a manual Simulator relaunch can keep using the same SSH stdio target
   - simulator validation used `GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64` with a disposable local OpenSSH server
 - Unit tests for ACP JSON decoding, transcript reduction, and SSH-forwarded WebSocket endpoint mapping.
 
@@ -65,6 +66,7 @@ Verification completed:
 - Re-ran `xcodebuild -project GooseRemote.xcodeproj -scheme GooseRemote -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build -quiet` after the final changes; it passed.
 - Added the `BGContinuedProcessingTask` demo scaffold and re-ran both the generic simulator build and simulator test command; both passed.
 - After making physical-device lock/background validation explicitly out of scope for the prototype, re-ran the simulator test command; it passed.
+- Added a regression test for persisting demo SSH launch settings, then validated a clean install: first launch with SSH env connected, env-free relaunch reused the saved SSH stdio config and connected after the notification prompt was dismissed.
 - Installed and launched `dev.tomb.GooseRemote` on the iPhone 17 Pro iOS 26.5 simulator against the real local Goose server.
 - Captured simulator screenshots under `/tmp/` for the Stage 7 run, including `/tmp/goose-remote-stage7-final-cold-launch.png`, `/tmp/goose-remote-stage7-fixed-after-second-send.png`, and `/tmp/goose-remote-stage7-final-notification-home.png`.
 - After the last code build/test, a later generic build initially failed only because Xcode could not write DerivedData due to `No space left on device`; clearing GooseRemote DerivedData/module cache restored enough headroom for a clean generic simulator build and test run.
