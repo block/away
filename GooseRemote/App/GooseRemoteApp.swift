@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @main
 struct GooseRemoteApp: App {
@@ -16,6 +17,11 @@ struct GooseRemoteApp: App {
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     model.updateScenePhase(newPhase)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+                    Task {
+                        await model.stop()
+                    }
                 }
         }
     }

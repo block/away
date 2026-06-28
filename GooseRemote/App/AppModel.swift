@@ -63,6 +63,15 @@ final class AppModel {
         await connect()
     }
 
+    func stop() async {
+        backgroundKeepalive.stop()
+        endShortBackgroundTask()
+        connectionTask?.cancel()
+        connectionTask = nil
+        await closeCurrentClient()
+        connectionState = .disconnected
+    }
+
     func updateScenePhase(_ phase: ScenePhase) {
         scenePhase = phase
         switch phase {
