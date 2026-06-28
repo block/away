@@ -57,7 +57,7 @@ private struct TranscriptTextView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(displayText)
+            Text(attributedDisplayText)
                 .font(.body)
                 .textSelection(.enabled)
 
@@ -76,5 +76,16 @@ private struct TranscriptTextView: View {
     private var displayText: String {
         guard isTruncated else { return text }
         return String(text.prefix(renderLimit))
+    }
+
+    private var attributedDisplayText: AttributedString {
+        (
+            try? AttributedString(
+                markdown: displayText,
+                options: AttributedString.MarkdownParsingOptions(
+                    interpretedSyntax: .inlineOnlyPreservingWhitespace
+                )
+            )
+        ) ?? AttributedString(displayText)
     }
 }
