@@ -78,6 +78,31 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertNil(result.subtitle)
     }
 
+    func testEmptyAudienceUserReplayChunkIsHidden() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        let result = reducer.apply(
+            notification(
+                kind: "user_message_chunk",
+                messageID: "u1",
+                text: "hidden context",
+                audience: []
+            )
+        )
+
+        XCTAssertTrue(reducer.messages.isEmpty)
+        XCTAssertNil(result.subtitle)
+    }
+
+    func testMissingAudienceUserReplayChunkIsVisible() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "u1", text: "visible context"))
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].content, [.text("visible context")])
+    }
+
     func testUserAudienceReplayChunkIsVisible() {
         var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
 

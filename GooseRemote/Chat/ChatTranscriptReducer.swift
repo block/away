@@ -203,7 +203,7 @@ struct ChatTranscriptReducer {
             return false
         }
         let roles = audience.compactMap(\.stringValue)
-        return !roles.isEmpty && !roles.contains("user")
+        return !roles.contains("user")
     }
 
     private func hasNoTextContent(messageID: String) -> Bool {
