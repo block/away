@@ -58,6 +58,32 @@ This gives each thread isolated app install state, UserDefaults, notification pe
 
 If multiple app variants are ever needed on the same simulator, add a separate bundle identifier strategy then. For now, per-simulator isolation is the default.
 
+## ACP Launch Configuration
+
+The app's default demo transport is SSH stdio, but a clean Simulator has no persisted SSH settings. Setting only:
+
+```text
+GOOSE_REMOTE_TRANSPORT=ssh-stdio
+GOOSE_REMOTE_SSH_COMMAND=goose acp
+```
+
+is not enough. With no saved settings or explicit SSH environment, the app falls back to SSH `127.0.0.1:22` without usable auth, which usually fails with `NIOConnectionError error 1`.
+
+For SSH stdio validation in a fresh per-thread Simulator, start or reuse the disposable local `sshd` on `127.0.0.1:2222`, then launch with the full connection environment:
+
+```text
+GOOSE_REMOTE_TRANSPORT=ssh-stdio
+GOOSE_REMOTE_SSH_HOST=127.0.0.1
+GOOSE_REMOTE_SSH_PORT=2222
+GOOSE_REMOTE_SSH_USERNAME=<local username>
+GOOSE_REMOTE_SSH_COMMAND=goose acp
+GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64=<matching raw P-256 private key>
+```
+
+After one successful environment-backed launch, the prototype persists those demo settings for that Simulator. A later manual relaunch can reuse them, but a new clean Simulator cannot.
+
+If the thread is validating session/export/UI behavior and SSH setup is not the thing under test, it may use the direct WebSocket shortcut against a local `goose serve` target instead. In that case, launch with `GOOSE_REMOTE_TRANSPORT=direct-websocket` and call out in the handoff that validation used direct WebSocket rather than the default SSH stdio path.
+
 ## Handoff Requirements
 
 When a spawned implementation thread launches or validates the app, its final handoff should include:
