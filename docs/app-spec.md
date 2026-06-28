@@ -70,17 +70,18 @@ Chat session:
 
 - Show a top bar with back navigation, session title, and connection/activity status.
 - First paint must not wait for full `session/load` replay. The chat shell shows title, working directory, latest snippet, relative activity time, and message count from `session/list` while history attaches.
-- If `_goose/unstable/session/export` succeeds quickly, show a bounded tail snapshot of recent user-visible text messages before full replay completes. Keep older exported messages available behind a lightweight earlier-history affordance.
+- If `_goose/unstable/session/export` succeeds quickly, show a bounded tail snapshot of recent user-visible text messages before full replay completes. Keep older exported messages available for automatic reveal when the user scrolls to the top of the visible tail; do not require a manual "show earlier" button.
 - Treat exported messages as provisional. `session/load` remains the source of truth for the initial transcript; when replay finishes with messages, replace/reconcile the provisional snapshot with replayed transcript state without duplicating messages or jumping away from the latest conversation.
 - If `session/load` returns without replaying any visible messages, keep a visible exported tail snapshot as a non-authoritative fallback instead of replacing it with an empty transcript.
 - Replay completion must settle historical messages into a non-streaming state. Do not keep replay-derived active-run or progress UI alive after loading unless a later live ACP update proves the run is active.
 - Re-entering a session with an already authoritative, non-empty transcript should reuse the loaded transcript instead of starting another full `session/load` replay.
-- Initial bottom settling should be bounded and non-animated after load completion so large lazy transcripts can finish measuring before the final bottom position is chosen. Do not keep scroll-geometry state updates in the transcript path that can drive layout feedback on large conversations.
+- Initial bottom settling should be a bounded, non-animated scroll intent handled by the transcript adapter after load completion or tail-snapshot publication. Do not keep scroll-geometry state updates in the SwiftUI transcript path that can drive layout feedback on large conversations.
 - If a user sends while an existing session is still attaching and `session/prompt` cannot be proven safe before load completion, keep the UI responsive with a local user bubble and queue the prompt until replay attachment completes.
 - Show transcript messages in a ChatGPT/Codex-like mobile layout.
 - Render Markdown in text messages as attributed text.
 - Keep assistant streaming under stable message identity so text grows in place.
 - Auto-scroll only when the user is already near the bottom.
+- The transcript surface should virtualize row views with a platform-backed scroll container. On iOS, use a `UITableView`/UIKit-backed adapter so the app may keep the complete fetched transcript in memory without placing every message row in the SwiftUI view tree. Keep the adapter boundary narrow enough that a native macOS `NSViewRepresentable` transcript surface can replace the iOS adapter later.
 - Keep the composer pinned above the keyboard.
 
 ## Notifications And Background

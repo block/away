@@ -19,7 +19,7 @@ struct ChatView: View {
                     .padding(.vertical, 8)
             }
 
-            MessageTimelineView(
+            ChatTranscriptView(
                 session: session,
                 messages: messages,
                 isLoading: isLoading,
@@ -65,7 +65,7 @@ struct ChatView: View {
     }
 }
 
-private struct MessageTimelineView: View {
+private struct ChatTranscriptView: View {
     let session: SessionSummary?
     let messages: [ChatMessage]
     let isLoading: Bool
@@ -73,111 +73,71 @@ private struct MessageTimelineView: View {
     let earlierMessageCount: Int
     let onRevealEarlierMessages: () -> Void
 
-    private let bottomID = "goose-transcript-bottom"
-    private var messageIDs: [String] { messages.map(\.id) }
+    @State private var isUserNearBottom = true
+    @State private var bottomScrollSequence = 0
+
+    private var canSettleToBottom: Bool {
+        !isLoading || hasTailSnapshot
+    }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    if let session, messages.isEmpty, isLoading {
-                        ChatSessionShellView(session: session)
-                    }
-
-                    if earlierMessageCount > 0 {
-                        Button(action: onRevealEarlierMessages) {
-                            Label("\(earlierMessageCount) earlier messages", systemImage: "clock.arrow.circlepath")
-                        }
-                        .buttonStyle(.borderless)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                    }
-
-                    ForEach(messages) { message in
-                        MessageBubbleView(message: message)
-                            .id(message.id)
-                    }
-
-                    Color.clear
-                        .frame(height: 1)
-                        .id(bottomID)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 16)
-                .transaction { transaction in
-                    transaction.animation = nil
-                }
+        TranscriptSurface(
+            session: session,
+            messages: messages,
+            isLoading: isLoading,
+            earlierMessageCount: earlierMessageCount,
+            scrollIntent: scrollIntent,
+            onReachTop: {
+                guard earlierMessageCount > 0 else { return }
+                onRevealEarlierMessages()
+            },
+            onNearBottomChanged: { isNearBottom in
+                isUserNearBottom = isNearBottom
             }
-            .defaultScrollAnchor(.bottom)
-            .onChange(of: messageIDs) { _, _ in
-                guard !isLoading || hasTailSnapshot else { return }
-                Task { @MainActor in
-                    await settleToBottom(proxy)
-                }
+        )
+        .onAppear {
+            if TranscriptBottomScrollPolicy.shouldRequestAfterInitialSettle(canSettleToBottom: canSettleToBottom) {
+                requestBottomScroll()
             }
-            .onChange(of: isLoading) { _, newValue in
-                guard !newValue else { return }
-                Task { @MainActor in
-                    await settleToBottom(proxy)
-                }
+        }
+        .onChange(of: canSettleToBottom) { _, newValue in
+            guard TranscriptBottomScrollPolicy.shouldRequestAfterSettleAvailabilityChanged(canSettleToBottom: newValue) else {
+                return
             }
-            .task(id: isLoading) {
-                guard !isLoading else { return }
-                await settleToBottom(proxy)
+            requestBottomScroll()
+        }
+        .onChange(of: messages.count) { oldValue, _ in
+            guard TranscriptBottomScrollPolicy.shouldRequestAfterMessageCountChanged(
+                canSettleToBottom: canSettleToBottom,
+                isUserNearBottom: isUserNearBottom,
+                oldCount: oldValue
+            ) else {
+                return
             }
+            requestBottomScroll()
+        }
+        .onChange(of: messages.last?.id) { _, _ in
+            guard TranscriptBottomScrollPolicy.shouldRequestAfterLastMessageChanged(
+                canSettleToBottom: canSettleToBottom,
+                isUserNearBottom: isUserNearBottom
+            ) else {
+                return
+            }
+            requestBottomScroll()
         }
     }
 
-    @MainActor
-    private func settleToBottom(_ proxy: ScrollViewProxy) async {
-        scrollToBottom(proxy)
-        for delay in [Duration.milliseconds(80), .milliseconds(180), .milliseconds(360), .milliseconds(720)] {
-            try? await Task.sleep(for: delay)
-            scrollToBottom(proxy)
-        }
+    private var scrollIntent: TranscriptScrollIntent? {
+        guard bottomScrollSequence > 0 else { return nil }
+        return TranscriptScrollIntent(
+            target: .bottom,
+            anchor: .bottom,
+            animated: false,
+            sequence: bottomScrollSequence
+        )
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        let targetID = messageIDs.last ?? bottomID
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            proxy.scrollTo(targetID, anchor: .bottom)
-        }
-    }
-}
-
-private struct ChatSessionShellView: View {
-    let session: SessionSummary
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(session.displayTitle)
-                .font(.headline)
-            if let subtitle = session.subtitle, !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            if let cwd = session.cwd, !cwd.isEmpty {
-                Text(cwd)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(2)
-            }
-            HStack(spacing: 10) {
-                if session.messageCount > 0 {
-                    Label("\(session.messageCount)", systemImage: "text.bubble")
-                }
-                if let activityAt = session.activityAt {
-                    Text(activityAt, style: .relative)
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 12)
+    private func requestBottomScroll() {
+        bottomScrollSequence += 1
     }
 }
