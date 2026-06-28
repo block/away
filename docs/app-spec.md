@@ -62,9 +62,10 @@ The first screen is the usable session list, not a landing page.
 Session list:
 
 - Title is `Goose`.
-- Show connection state.
-- Show recent sessions with title, snippet or path, relative time, and navigation affordance.
-- Show a sparse empty state if the configured server has no sessions.
+- Show connection state in a compact status strip, expanding error details when connection fails.
+- Preserve refresh and demo background keepalive controls without adding session creation or server switching UI.
+- Show recent sessions with title, snippet or path, relative time, compact metadata, and navigation affordance.
+- Show a sparse empty state with a refresh action if the configured server has no sessions.
 
 Chat session:
 
