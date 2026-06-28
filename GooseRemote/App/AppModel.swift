@@ -37,6 +37,8 @@ final class AppModel {
 
     @ObservationIgnored private var client: ACPClient?
     @ObservationIgnored private var notificationTask: Task<Void, Never>?
+    @ObservationIgnored private var notificationFlushTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingNotifications: [ACPNotification] = []
     @ObservationIgnored private var connectionTask: Task<Void, Never>?
     @ObservationIgnored private var shortBackgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @ObservationIgnored private var lastNotifiedMessageIDs: Set<String> = []
@@ -167,8 +169,10 @@ final class AppModel {
         do {
             let cwd = sessions.first(where: { $0.id == sessionID })?.cwd
             try await client.loadSession(sessionID: sessionID, cwd: cwd ?? connectionConfig.defaultCWD)
+            flushPendingNotifications()
             runtimeBySession[sessionID, default: SessionRuntime()].isReplaying = false
         } catch {
+            flushPendingNotifications()
             runtimeBySession[sessionID, default: SessionRuntime()].isReplaying = false
             runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = error.localizedDescription
         }
@@ -202,7 +206,7 @@ final class AppModel {
         notificationTask?.cancel()
         notificationTask = Task { [weak self] in
             for await notification in client.notifications {
-                await self?.apply(notification)
+                self?.enqueue(notification)
             }
         }
     }
@@ -210,37 +214,86 @@ final class AppModel {
     private func closeCurrentClient() async {
         notificationTask?.cancel()
         notificationTask = nil
+        notificationFlushTask?.cancel()
+        notificationFlushTask = nil
+        pendingNotifications.removeAll()
         if let client {
             await client.close()
         }
         client = nil
     }
 
-    private func apply(_ notification: ACPNotification) async {
-        let sessionID = notification.sessionID
-        var reducer = ChatTranscriptReducer(
-            messages: messagesBySession[sessionID] ?? [],
-            runtime: runtimeBySession[sessionID] ?? SessionRuntime()
-        )
-        let result = reducer.apply(notification)
-        messagesBySession[sessionID] = reducer.messages
-        runtimeBySession[sessionID] = reducer.runtime
-        patchSessionMetadata(sessionID: sessionID, from: result)
+    private func enqueue(_ notification: ACPNotification) {
+        pendingNotifications.append(notification)
+        if runtimeBySession[notification.sessionID]?.isReplaying == true {
+            return
+        }
+        scheduleNotificationFlush()
+    }
 
-        if scenePhase != .active,
-           let assistantNotification = result.assistantNotification,
-           !lastNotifiedMessageIDs.contains(assistantNotification.messageID)
-        {
+    private func scheduleNotificationFlush() {
+        guard notificationFlushTask == nil else { return }
+        notificationFlushTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(50))
+            await MainActor.run {
+                self?.flushPendingNotifications()
+            }
+        }
+    }
+
+    private func flushPendingNotifications() {
+        notificationFlushTask?.cancel()
+        notificationFlushTask = nil
+
+        let notifications = pendingNotifications
+        pendingNotifications.removeAll(keepingCapacity: true)
+        guard !notifications.isEmpty else { return }
+
+        var assistantNotifications: [(sessionID: String, notification: AssistantNotification)] = []
+        let grouped = Dictionary(grouping: notifications, by: \.sessionID)
+
+        for (sessionID, sessionNotifications) in grouped {
+            var reducer = ChatTranscriptReducer(
+                messages: messagesBySession[sessionID] ?? [],
+                runtime: runtimeBySession[sessionID] ?? SessionRuntime()
+            )
+            var mergedResult = TranscriptApplyResult()
+
+            for notification in sessionNotifications {
+                let result = reducer.apply(notification)
+                mergedResult.merge(result)
+                if let assistantNotification = result.assistantNotification {
+                    assistantNotifications.append((sessionID, assistantNotification))
+                }
+            }
+
+            messagesBySession[sessionID] = reducer.messages
+            runtimeBySession[sessionID] = reducer.runtime
+            patchSessionMetadata(sessionID: sessionID, from: mergedResult)
+        }
+
+        postBackgroundNotifications(assistantNotifications)
+    }
+
+    private func postBackgroundNotifications(
+        _ assistantNotifications: [(sessionID: String, notification: AssistantNotification)]
+    ) {
+        guard scenePhase != .active else { return }
+
+        for (sessionID, assistantNotification) in assistantNotifications
+        where !lastNotifiedMessageIDs.contains(assistantNotification.messageID) {
             lastNotifiedMessageIDs.insert(assistantNotification.messageID)
             ContinuedProcessingDemoService.shared.noteACPActivity(
                 title: title(for: sessionID),
                 subtitle: assistantNotification.preview
             )
-            await notificationCoordinator.postAssistantMessage(
-                sessionID: sessionID,
-                title: title(for: sessionID),
-                body: assistantNotification.preview
-            )
+            Task {
+                await notificationCoordinator.postAssistantMessage(
+                    sessionID: sessionID,
+                    title: title(for: sessionID),
+                    body: assistantNotification.preview
+                )
+            }
         }
     }
 

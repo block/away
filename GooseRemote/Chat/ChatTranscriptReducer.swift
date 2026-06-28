@@ -224,6 +224,12 @@ struct TranscriptApplyResult: Equatable, Sendable {
     var subtitle: String?
     var sessionTitle: String?
     var assistantNotification: AssistantNotification?
+
+    mutating func merge(_ other: TranscriptApplyResult) {
+        subtitle = other.subtitle ?? subtitle
+        sessionTitle = other.sessionTitle ?? sessionTitle
+        assistantNotification = other.assistantNotification ?? assistantNotification
+    }
 }
 
 struct AssistantNotification: Equatable, Sendable {

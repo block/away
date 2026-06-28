@@ -10,7 +10,7 @@ struct MessageBubbleView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(message.content) { content in
+                ForEach(Array(message.content.enumerated()), id: \.offset) { _, content in
                     contentView(content)
                 }
                 if message.isStreaming {
@@ -28,16 +28,14 @@ struct MessageBubbleView: View {
                 Spacer(minLength: 24)
             }
         }
-        .animation(.snappy(duration: 0.18), value: message)
+        .animation(.snappy(duration: 0.18), value: message.isStreaming)
     }
 
     @ViewBuilder
     private func contentView(_ content: ChatContent) -> some View {
         switch content {
         case .text(let text):
-            Text(text)
-                .font(.body)
-                .textSelection(.enabled)
+            TranscriptTextView(text: text)
         case .image:
             Label("Image output", systemImage: "photo")
                 .font(.subheadline)
@@ -49,5 +47,34 @@ struct MessageBubbleView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+private struct TranscriptTextView: View {
+    let text: String
+
+    private let renderLimit = 12_000
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(displayText)
+                .font(.body)
+                .textSelection(.enabled)
+
+            if isTruncated {
+                Text("Long message truncated for the prototype.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var isTruncated: Bool {
+        text.count > renderLimit
+    }
+
+    private var displayText: String {
+        guard isTruncated else { return text }
+        return String(text.prefix(renderLimit))
     }
 }
