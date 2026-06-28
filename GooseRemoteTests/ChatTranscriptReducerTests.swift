@@ -62,6 +62,38 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertEqual(reducer.messages[0].content, [.text("hi there")])
     }
 
+    func testAssistantOnlyUserReplayChunkIsHidden() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        let result = reducer.apply(
+            notification(
+                kind: "user_message_chunk",
+                messageID: "u1",
+                text: "hidden context",
+                audience: ["assistant"]
+            )
+        )
+
+        XCTAssertTrue(reducer.messages.isEmpty)
+        XCTAssertNil(result.subtitle)
+    }
+
+    func testUserAudienceReplayChunkIsVisible() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        _ = reducer.apply(
+            notification(
+                kind: "user_message_chunk",
+                messageID: "u1",
+                text: "visible context",
+                audience: ["assistant", "user"]
+            )
+        )
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].content, [.text("visible context")])
+    }
+
     func testToolUpdatePatchesExistingTool() {
         var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
 
@@ -159,16 +191,28 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertFalse(reducer.messages[0].isStreaming)
     }
 
-    private func notification(kind: String, messageID: String, text: String) -> ACPNotification {
-        ACPNotification(
+    private func notification(
+        kind: String,
+        messageID: String,
+        text: String,
+        audience: [String]? = nil
+    ) -> ACPNotification {
+        var content: [String: JSONValue] = [
+            "type": "text",
+            "text": .string(text)
+        ]
+        if let audience {
+            content["annotations"] = [
+                "audience": .array(audience.map(JSONValue.string))
+            ]
+        }
+
+        return ACPNotification(
             sessionID: "s1",
             update: ACPUpdate(raw: [
                 "sessionUpdate": .string(kind),
                 "messageId": .string(messageID),
-                "content": [
-                    "type": "text",
-                    "text": .string(text)
-                ]
+                "content": .object(content)
             ])
         )
     }

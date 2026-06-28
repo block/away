@@ -42,6 +42,7 @@ struct ChatTranscriptReducer {
 
         case "user_message", "user_message_chunk":
             if let content = update.content,
+               !isAssistantOnly(content),
                let text = textContent(from: content) {
                 finishStreamingMessage()
                 let messageID = update.messageID ?? UUID().uuidString
@@ -195,6 +196,14 @@ struct ChatTranscriptReducer {
     private func textContent(from object: [String: JSONValue]) -> String? {
         guard object["type"]?.stringValue == "text" else { return nil }
         return object["text"]?.stringValue
+    }
+
+    private func isAssistantOnly(_ object: [String: JSONValue]) -> Bool {
+        guard let audience = object["annotations"]?["audience"]?.arrayValue else {
+            return false
+        }
+        let roles = audience.compactMap(\.stringValue)
+        return !roles.isEmpty && !roles.contains("user")
     }
 
     private func hasNoTextContent(messageID: String) -> Bool {
