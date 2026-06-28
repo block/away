@@ -11,7 +11,7 @@ This prototype implements push-like notification UI without APNS by posting imme
 - `UNTextInputNotificationAction` reply action.
 - Notification Content Extension for expanded chat-like notification presentation.
 - Notification reply queuing if iOS delivers the action before the SwiftUI `AppModel` is attached.
-- Demo-only `BGContinuedProcessingTask` scaffolding behind the keepalive path. The app registers a wildcard continued-processing task handler on launch, submits a user-visible continued-processing request when the demo keepalive starts, updates progress/title when background ACP activity is observed, and cancels/completes the task when keepalive stops.
+- Demo-only `BGContinuedProcessingTask` scaffolding behind the keepalive path. The app registers a concrete continued-processing task handler on launch using an identifier covered by the permitted wildcard prefix, submits a user-visible continued-processing request when the demo keepalive starts, updates progress/title when background ACP activity is observed, and cancels/completes the task when keepalive stops.
 
 ## Simulator Evidence
 
