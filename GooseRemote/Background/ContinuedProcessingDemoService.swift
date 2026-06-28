@@ -5,21 +5,16 @@ import Foundation
 final class ContinuedProcessingDemoService {
     static let shared = ContinuedProcessingDemoService()
 
-    private static let taskIdentifierPrefix = "dev.tomb.GooseRemote.continued-processing"
-    private static let wildcardTaskIdentifier = "\(taskIdentifierPrefix).*"
-
     private var didRegister = false
-    private var submittedTaskIdentifier: String?
     private var activeTask: BGContinuedProcessingTask?
 
     private init() {}
 
     func registerLaunchHandler() {
         guard !didRegister else { return }
-        didRegister = true
 
-        BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: Self.wildcardTaskIdentifier,
+        didRegister = BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: ContinuedProcessingTaskIdentifiers.task,
             using: nil
         ) { [weak self] task in
             Task { @MainActor in
@@ -29,9 +24,11 @@ final class ContinuedProcessingDemoService {
     }
 
     func submitListeningRequest() {
-        let identifier = "\(Self.taskIdentifierPrefix).\(UUID().uuidString)"
+        registerLaunchHandler()
+        guard didRegister else { return }
+
         let request = BGContinuedProcessingTaskRequest(
-            identifier: identifier,
+            identifier: ContinuedProcessingTaskIdentifiers.task,
             title: "Goose Remote",
             subtitle: "Listening for session updates"
         )
@@ -40,17 +37,13 @@ final class ContinuedProcessingDemoService {
 
         do {
             try BGTaskScheduler.shared.submit(request)
-            submittedTaskIdentifier = identifier
         } catch {
             // Demo-only scaffolding. The app still relies on foreground/short background execution.
         }
     }
 
     func cancelListeningRequest() {
-        if let submittedTaskIdentifier {
-            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: submittedTaskIdentifier)
-        }
-        submittedTaskIdentifier = nil
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: ContinuedProcessingTaskIdentifiers.task)
         completeActiveTask(success: true)
     }
 
@@ -81,4 +74,10 @@ final class ContinuedProcessingDemoService {
         activeTask?.setTaskCompleted(success: success)
         activeTask = nil
     }
+}
+
+enum ContinuedProcessingTaskIdentifiers {
+    static let prefix = "dev.tomb.GooseRemote.continued-processing"
+    static let permittedWildcard = "\(prefix).*"
+    static let task = "\(prefix).listening"
 }

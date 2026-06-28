@@ -48,14 +48,7 @@ final class DemoBackgroundKeepaliveService: NSObject, CLLocationManagerDelegate 
             try session.setActive(true)
 
             let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
-            let sourceNode = AVAudioSourceNode { _, _, frameCount, audioBufferList -> OSStatus in
-                let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
-                for buffer in buffers {
-                    guard let data = buffer.mData else { continue }
-                    memset(data, 0, Int(frameCount) * MemoryLayout<Float>.size)
-                }
-                return noErr
-            }
+            let sourceNode = SilentAudioRenderer.makeSourceNode()
             self.sourceNode = sourceNode
             audioEngine.attach(sourceNode)
             audioEngine.connect(sourceNode, to: audioEngine.mainMixerNode, format: format)
@@ -63,5 +56,22 @@ final class DemoBackgroundKeepaliveService: NSObject, CLLocationManagerDelegate 
         } catch {
             // Demo-only keepalive; failing to start audio should not affect ACP.
         }
+    }
+}
+
+enum SilentAudioRenderer {
+    static func makeSourceNode() -> AVAudioSourceNode {
+        AVAudioSourceNode { _, _, _, audioBufferList -> OSStatus in
+            renderSilence(audioBufferList)
+        }
+    }
+
+    static func renderSilence(_ audioBufferList: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
+        let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
+        for buffer in buffers {
+            guard let data = buffer.mData else { continue }
+            memset(data, 0, Int(buffer.mDataByteSize))
+        }
+        return noErr
     }
 }
