@@ -23,6 +23,7 @@ struct ChatView: View {
                 session: session,
                 messages: messages,
                 isLoading: isLoading,
+                hasTailSnapshot: runtime.hasTailSnapshot,
                 earlierMessageCount: earlierMessageCount
             ) {
                 model.revealEarlierMessages(for: sessionID)
@@ -68,6 +69,7 @@ private struct MessageTimelineView: View {
     let session: SessionSummary?
     let messages: [ChatMessage]
     let isLoading: Bool
+    let hasTailSnapshot: Bool
     let earlierMessageCount: Int
     let onRevealEarlierMessages: () -> Void
 
@@ -107,33 +109,41 @@ private struct MessageTimelineView: View {
                     transaction.animation = nil
                 }
             }
+            .defaultScrollAnchor(.bottom)
             .onChange(of: messageIDs) { _, _ in
-                guard !isLoading else { return }
-                settleToBottom(proxy)
+                guard !isLoading || hasTailSnapshot else { return }
+                Task { @MainActor in
+                    await settleToBottom(proxy)
+                }
             }
             .onChange(of: isLoading) { _, newValue in
                 guard !newValue else { return }
-                settleToBottom(proxy)
+                Task { @MainActor in
+                    await settleToBottom(proxy)
+                }
             }
             .task(id: isLoading) {
                 guard !isLoading else { return }
-                await Task.yield()
-                scrollToBottom(proxy)
+                await settleToBottom(proxy)
             }
         }
     }
 
-    private func settleToBottom(_ proxy: ScrollViewProxy) {
-        DispatchQueue.main.async {
+    @MainActor
+    private func settleToBottom(_ proxy: ScrollViewProxy) async {
+        scrollToBottom(proxy)
+        for delay in [Duration.milliseconds(80), .milliseconds(180), .milliseconds(360), .milliseconds(720)] {
+            try? await Task.sleep(for: delay)
             scrollToBottom(proxy)
         }
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        let targetID = messageIDs.last ?? bottomID
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-            proxy.scrollTo(bottomID, anchor: .bottom)
+            proxy.scrollTo(targetID, anchor: .bottom)
         }
     }
 }

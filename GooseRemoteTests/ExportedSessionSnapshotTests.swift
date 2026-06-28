@@ -345,6 +345,76 @@ final class ExportedSessionSnapshotTests: XCTestCase {
         XCTAssertEqual(model.earlierMessagesBySession["s1"], [])
     }
 
+    @MainActor
+    func testEmptyAuthoritativeReplayKeepsVisibleTailSnapshotNonAuthoritative() {
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        let snapshot = ExportedSessionSnapshot(
+            visibleMessages: [
+                ChatMessage(id: "tail", role: .assistant, content: [.text("recent tail")])
+            ],
+            earlierMessages: [
+                ChatMessage(id: "older", role: .user, content: [.text("older")])
+            ]
+        )
+        model.publishSnapshotForTesting(snapshot, for: "s1")
+
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: "s1")
+
+        XCTAssertEqual(model.messagesBySession["s1"]?.map(\.id), ["tail"])
+        XCTAssertEqual(model.earlierMessagesBySession["s1"]?.map(\.id), ["older"])
+        XCTAssertEqual(model.runtimeBySession["s1"]?.hasTailSnapshot, true)
+        XCTAssertEqual(model.runtimeBySession["s1"]?.hasAuthoritativeReplay, false)
+        XCTAssertEqual(model.runtimeBySession["s1"]?.isOpening, false)
+        XCTAssertEqual(model.runtimeBySession["s1"]?.isReplaying, false)
+        XCTAssertEqual(model.runtimeBySession["s1"]?.snapshotMessageIDs, Set(["tail", "older"]))
+    }
+
+    @MainActor
+    func testAuthoritativeReplayReplacesTailSnapshotWhenReplayHasMessages() {
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        let snapshot = ExportedSessionSnapshot(
+            visibleMessages: [
+                ChatMessage(id: "tail", role: .assistant, content: [.text("recent tail")])
+            ],
+            earlierMessages: [
+                ChatMessage(id: "older", role: .user, content: [.text("older")])
+            ]
+        )
+        model.publishSnapshotForTesting(snapshot, for: "s1")
+        model.appendPendingNotificationsForTesting([
+            notification(kind: "agent_message_chunk", messageID: "loaded", text: "authoritative")
+        ])
+
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: "s1")
+
+        XCTAssertEqual(model.messagesBySession["s1"]?.map(\.id), ["loaded"])
+        XCTAssertEqual(model.messagesBySession["s1"]?.map(\.plainText), ["authoritative"])
+        XCTAssertEqual(model.earlierMessagesBySession["s1"], [])
+        XCTAssertEqual(model.runtimeBySession["s1"]?.hasTailSnapshot, false)
+        XCTAssertEqual(model.runtimeBySession["s1"]?.hasAuthoritativeReplay, true)
+        XCTAssertEqual(model.runtimeBySession["s1"]?.snapshotMessageIDs, Set<String>())
+    }
+
+    @MainActor
+    func testPublishingSnapshotCapsSessionPreview() throws {
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [SessionSummary(id: "s1", title: "Session")]
+        let longText = Array(repeating: "word", count: 80).joined(separator: "\n")
+        let snapshot = ExportedSessionSnapshot(
+            visibleMessages: [
+                ChatMessage(id: "tail", role: .assistant, content: [.text(longText)])
+            ],
+            earlierMessages: []
+        )
+
+        model.publishSnapshotForTesting(snapshot, for: "s1")
+
+        let subtitle = try XCTUnwrap(model.sessions.first?.subtitle)
+        XCTAssertLessThanOrEqual(subtitle.count, 243)
+        XCTAssertTrue(subtitle.hasSuffix("..."))
+        XCTAssertFalse(subtitle.contains("\n"))
+    }
+
     private func notification(kind: String, messageID: String, text: String) -> ACPNotification {
         ACPNotification(
             sessionID: "s1",
