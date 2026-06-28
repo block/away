@@ -343,7 +343,7 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertNil(replay.runtime.activeRunID)
     }
 
-    func testAuthoritativeReplayKeepsTrailingAssistantMessageStreamingWhenRunIsActive() {
+    func testAuthoritativeReplaySettlesTrailingAssistantMessageEvenWhenReplayHasActiveRunID() {
         let replay = ChatTranscriptReducer.authoritativeReplay(
             notifications: [
                 ACPNotification(
@@ -362,9 +362,9 @@ final class ChatTranscriptReducerTests: XCTestCase {
         )
 
         XCTAssertEqual(replay.messages.map(\.id), ["a1"])
-        XCTAssertTrue(replay.messages[0].isStreaming)
-        XCTAssertEqual(replay.runtime.streamingMessageID, "a1")
-        XCTAssertEqual(replay.runtime.activeRunID, "run-1")
+        XCTAssertFalse(replay.messages[0].isStreaming)
+        XCTAssertNil(replay.runtime.streamingMessageID)
+        XCTAssertNil(replay.runtime.activeRunID)
     }
 
     private func notification(

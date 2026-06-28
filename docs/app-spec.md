@@ -71,6 +71,7 @@ Chat session:
 - First paint must not wait for full `session/load` replay. The chat shell shows title, working directory, latest snippet, relative activity time, and message count from `session/list` while history attaches.
 - Do not show provisional transcript messages while an existing session is loading. The visible states are: loading shell with no messages, then the loaded transcript settled at the bottom.
 - `session/load` remains the source of truth for the initial transcript. When replay finishes, reveal the replayed transcript without animated insertion or animated scrolling, and remove the loading indicator.
+- Replay completion must settle historical messages into a non-streaming state. Do not keep replay-derived active-run or progress UI alive after loading unless a later live ACP update proves the run is active.
 - If a user sends while an existing session is still attaching and `session/prompt` cannot be proven safe before load completion, keep the UI responsive with a local user bubble and queue the prompt until replay attachment completes.
 - Show transcript messages in a ChatGPT/Codex-like mobile layout.
 - Render Markdown in text messages as attributed text.

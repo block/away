@@ -27,9 +27,8 @@ struct ChatTranscriptReducer {
             reducer.appendLocalUserMessage(id: prompt.id, text: prompt.text)
         }
 
-        if reducer.runtime.activeRunID == nil {
-            reducer.finishStreamingMessage()
-        }
+        reducer.runtime.activeRunID = nil
+        reducer.finishStreamingMessage()
 
         reducer.runtime.hasAuthoritativeReplay = true
         reducer.runtime.hasTailSnapshot = false

@@ -13,9 +13,10 @@ struct MessageBubbleView: View {
                 ForEach(Array(message.content.enumerated()), id: \.offset) { _, content in
                     contentView(content)
                 }
-                if message.isStreaming {
-                    ProgressView()
-                        .controlSize(.mini)
+                if message.isStreaming, message.content.isEmpty {
+                    Text("Working...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, message.role == .user ? 14 : 0)
