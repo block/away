@@ -28,7 +28,6 @@ struct MessageBubbleView: View {
                 Spacer(minLength: 24)
             }
         }
-        .animation(.snappy(duration: 0.18), value: message.isStreaming)
     }
 
     @ViewBuilder

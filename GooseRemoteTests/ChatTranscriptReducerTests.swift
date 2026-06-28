@@ -329,6 +329,44 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertFalse(reducer.messages[0].isStreaming)
     }
 
+    func testAuthoritativeReplayFinishesTrailingAssistantMessageWhenNoRunIsActive() {
+        let replay = ChatTranscriptReducer.authoritativeReplay(
+            notifications: [
+                notification(kind: "agent_message_chunk", messageID: "a1", text: "loaded")
+            ]
+        )
+
+        XCTAssertEqual(replay.messages.map(\.id), ["a1"])
+        XCTAssertEqual(replay.messages[0].plainText, "loaded")
+        XCTAssertFalse(replay.messages[0].isStreaming)
+        XCTAssertNil(replay.runtime.streamingMessageID)
+        XCTAssertNil(replay.runtime.activeRunID)
+    }
+
+    func testAuthoritativeReplayKeepsTrailingAssistantMessageStreamingWhenRunIsActive() {
+        let replay = ChatTranscriptReducer.authoritativeReplay(
+            notifications: [
+                ACPNotification(
+                    sessionID: "s1",
+                    update: ACPUpdate(raw: [
+                        "sessionUpdate": "session_info_update",
+                        "_meta": [
+                            "goose": [
+                                "activeRunId": "run-1"
+                            ]
+                        ]
+                    ])
+                ),
+                notification(kind: "agent_message_chunk", messageID: "a1", text: "still running")
+            ]
+        )
+
+        XCTAssertEqual(replay.messages.map(\.id), ["a1"])
+        XCTAssertTrue(replay.messages[0].isStreaming)
+        XCTAssertEqual(replay.runtime.streamingMessageID, "a1")
+        XCTAssertEqual(replay.runtime.activeRunID, "run-1")
+    }
+
     private func notification(
         kind: String,
         messageID: String,

@@ -58,8 +58,6 @@ final class AppModel {
     @ObservationIgnored private let connectionConfig: RemoteConnectionConfig
     @ObservationIgnored private let notificationCoordinator = NotificationCoordinator.shared
     @ObservationIgnored private let backgroundKeepalive = DemoBackgroundKeepaliveService()
-    @ObservationIgnored private let exportTailMessageLimit = 16
-    @ObservationIgnored private let loadDelay = Duration.milliseconds(450)
     @ObservationIgnored private let maxQueuedPromptAttachRetryAttempts = 3
 
     init(connectionConfig: RemoteConnectionConfig = .demo) {
@@ -186,34 +184,12 @@ final class AppModel {
             return
         }
 
-        await Task.yield()
-
-        let exportTask = Task.detached(priority: .userInitiated) { [client, exportTailMessageLimit] () -> ExportedSessionSnapshot? in
-            do {
-                let json = try await client.exportSession(sessionID: sessionID)
-                return try ExportedSessionSnapshot.parse(json: json, tailLimit: exportTailMessageLimit)
-            } catch {
-                return nil
-            }
-        }
-
-        if let snapshot = await snapshot(from: exportTask, before: loadDelay),
-           isCurrentOpen(sessionID: sessionID, token: openToken),
-           (messagesBySession[sessionID] ?? []).isEmpty {
-            publish(snapshot: snapshot, for: sessionID)
-            await Task.yield()
-        }
-
         guard isCurrentOpen(sessionID: sessionID, token: openToken) else {
             clearOpeningStateIfNoLongerCurrent(sessionID: sessionID)
             return
         }
         runtimeBySession[sessionID, default: SessionRuntime()].isOpening = false
         runtimeBySession[sessionID, default: SessionRuntime()].isReplaying = true
-
-        if (messagesBySession[sessionID] ?? []).isEmpty {
-            publishLateSnapshot(from: exportTask, sessionID: sessionID, token: openToken)
-        }
 
         do {
             let cwd = sessions.first(where: { $0.id == sessionID })?.cwd
@@ -300,60 +276,6 @@ final class AppModel {
             backgroundKeepalive.start()
         } else {
             backgroundKeepalive.stop()
-        }
-    }
-
-    private func snapshot(
-        from task: Task<ExportedSessionSnapshot?, Never>,
-        before delay: Duration
-    ) async -> ExportedSessionSnapshot? {
-        await withTaskGroup(of: ExportedSessionSnapshot?.self) { group in
-            group.addTask {
-                await task.value
-            }
-            group.addTask {
-                try? await Task.sleep(for: delay)
-                return nil
-            }
-
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
-        }
-    }
-
-    private func publishLateSnapshot(
-        from task: Task<ExportedSessionSnapshot?, Never>,
-        sessionID: String,
-        token: UUID
-    ) {
-        Task { @MainActor [weak self] in
-            guard let snapshot = await task.value,
-                  let self,
-                  self.isCurrentOpen(sessionID: sessionID, token: token),
-                  self.runtimeBySession[sessionID]?.hasAuthoritativeReplay != true,
-                  (self.messagesBySession[sessionID] ?? []).isEmpty
-            else {
-                return
-            }
-
-            self.publish(snapshot: snapshot, for: sessionID)
-        }
-    }
-
-    private func publish(snapshot: ExportedSessionSnapshot, for sessionID: String) {
-        guard !snapshot.visibleMessages.isEmpty else { return }
-
-        messagesBySession[sessionID] = snapshot.visibleMessages
-        earlierMessagesBySession[sessionID] = snapshot.earlierMessages
-        runtimeBySession[sessionID, default: SessionRuntime()].hasTailSnapshot = true
-        runtimeBySession[sessionID, default: SessionRuntime()].hasAuthoritativeReplay = false
-        runtimeBySession[sessionID, default: SessionRuntime()].snapshotMessageIDs = Set(
-            (snapshot.visibleMessages + snapshot.earlierMessages).map(\.id)
-        )
-
-        if let lastText = snapshot.visibleMessages.compactMap(\.plainText).last {
-            updateSessionActivity(sessionID: sessionID, subtitle: lastText)
         }
     }
 
@@ -444,25 +366,14 @@ final class AppModel {
             var mergedResult = TranscriptApplyResult()
 
             if sessionID == authoritativeReplaySessionID {
-                let existingMessages = messagesBySession[sessionID] ?? []
                 let replay = ChatTranscriptReducer.authoritativeReplay(
                     notifications: sessionNotifications,
                     preservingLocalPrompts: queuedPromptsBySession[sessionID] ?? []
                 )
                 queuedPromptsBySession[sessionID] = replay.queuedPrompts
-                if replay.messages.isEmpty, !existingMessages.isEmpty {
-                    messagesBySession[sessionID] = existingMessages
-                    var runtime = replay.runtime
-                    runtime.hasTailSnapshot = true
-                    runtime.hasAuthoritativeReplay = false
-                    runtime.snapshotMessageIDs = runtimeBySession[sessionID]?.snapshotMessageIDs ?? []
-                    runtime.queuedPromptCount = replay.queuedPrompts.count
-                    runtimeBySession[sessionID] = runtime
-                } else {
-                    messagesBySession[sessionID] = replay.messages
-                    earlierMessagesBySession[sessionID] = []
-                    runtimeBySession[sessionID] = replay.runtime
-                }
+                messagesBySession[sessionID] = replay.messages
+                earlierMessagesBySession[sessionID] = []
+                runtimeBySession[sessionID] = replay.runtime
                 mergedResult = replay.result
             } else {
                 var reducer = ChatTranscriptReducer(

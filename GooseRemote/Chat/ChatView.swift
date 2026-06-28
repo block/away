@@ -10,10 +10,11 @@ struct ChatView: View {
         let messages = model.messagesBySession[sessionID] ?? []
         let runtime = model.runtimeBySession[sessionID] ?? SessionRuntime()
         let earlierMessageCount = model.earlierMessagesBySession[sessionID]?.count ?? 0
+        let isLoading = runtime.isOpening || runtime.isReplaying
 
         VStack(spacing: 0) {
-            if runtime.isOpening || runtime.isReplaying {
-                ProgressView(runtime.hasTailSnapshot ? "Loading full transcript" : "Opening session")
+            if isLoading {
+                ProgressView("Loading session")
                     .font(.caption)
                     .padding(.vertical, 8)
             }
@@ -21,8 +22,7 @@ struct ChatView: View {
             MessageTimelineView(
                 session: session,
                 messages: messages,
-                isOpening: runtime.isOpening,
-                isReplaying: runtime.isReplaying,
+                isLoading: isLoading,
                 earlierMessageCount: earlierMessageCount
             ) {
                 model.revealEarlierMessages(for: sessionID)
@@ -67,8 +67,7 @@ struct ChatView: View {
 private struct MessageTimelineView: View {
     let session: SessionSummary?
     let messages: [ChatMessage]
-    let isOpening: Bool
-    let isReplaying: Bool
+    let isLoading: Bool
     let earlierMessageCount: Int
     let onRevealEarlierMessages: () -> Void
     @State private var isNearBottom = true
@@ -79,9 +78,8 @@ private struct MessageTimelineView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    if let session, messages.isEmpty, isOpening {
+                    if let session, messages.isEmpty, isLoading {
                         ChatSessionShellView(session: session)
-                            .transition(.opacity)
                     }
 
                     if earlierMessageCount > 0 {
@@ -97,7 +95,6 @@ private struct MessageTimelineView: View {
                     ForEach(messages) { message in
                         MessageBubbleView(message: message)
                             .id(message.id)
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
 
                     Color.clear
@@ -106,6 +103,9 @@ private struct MessageTimelineView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 16)
+                .transaction { transaction in
+                    transaction.animation = nil
+                }
             }
             .defaultScrollAnchor(.bottom)
             .onScrollGeometryChange(for: Bool.self) { geometry in
@@ -115,28 +115,22 @@ private struct MessageTimelineView: View {
                 isNearBottom = newValue
             }
             .onChange(of: messages) { _, _ in
-                guard !isReplaying, isNearBottom else { return }
-                scrollToBottom(proxy, animated: true)
+                guard !isLoading, isNearBottom else { return }
+                scrollToBottom(proxy)
             }
-            .onChange(of: isReplaying) { _, newValue in
+            .onChange(of: isLoading) { _, newValue in
                 guard !newValue else { return }
-                scrollToBottom(proxy, animated: false)
+                scrollToBottom(proxy)
             }
             .task {
                 await Task.yield()
-                scrollToBottom(proxy, animated: false)
+                scrollToBottom(proxy)
             }
         }
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
-        if animated {
-            withAnimation(.snappy(duration: 0.24)) {
-                proxy.scrollTo(bottomID, anchor: .bottom)
-            }
-        } else {
-            proxy.scrollTo(bottomID, anchor: .bottom)
-        }
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        proxy.scrollTo(bottomID, anchor: .bottom)
     }
 }
 

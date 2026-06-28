@@ -11,7 +11,7 @@ The remote machine only needs a Goose ACP server. It does not need Goose2 or Cat
 ## Core Behavior
 
 - The app lists existing Goose sessions from the configured ACP target.
-- The app opens existing sessions immediately from `session/list` metadata, then loads transcript history in the background.
+- The app opens existing sessions immediately from `session/list` metadata, then shows a loading shell while transcript history attaches.
 - Session creation is out of scope.
 - The app receives live ACP session updates while connected.
 - The app sends user prompts to the active session.
@@ -38,7 +38,6 @@ The app speaks JSON-RPC 2.0 ACP messages over the selected transport. The core A
 
 - `initialize`
 - `session/list`
-- `_goose/unstable/session/export` as an optional opening-latency optimization
 - `session/load`
 - `session/prompt`
 - `_goose/unstable/session/steer` when mid-run steering is enabled and reliable
@@ -69,9 +68,9 @@ Session list:
 Chat session:
 
 - Show a top bar with back navigation, session title, and connection/activity status.
-- First paint must not wait for full `session/load` replay. The chat shell may show title, working directory, latest snippet, relative activity time, and message count from `session/list` while history attaches.
-- If `_goose/unstable/session/export` succeeds quickly, show a bounded tail snapshot of recent user-visible text messages before full replay completes. Keep older exported messages available behind a lightweight earlier-history affordance.
-- Treat exported messages as provisional. `session/load` remains the source of truth; when replay finishes, replace/reconcile the provisional snapshot with replayed transcript state without duplicating messages or jumping away from the latest conversation.
+- First paint must not wait for full `session/load` replay. The chat shell shows title, working directory, latest snippet, relative activity time, and message count from `session/list` while history attaches.
+- Do not show provisional transcript messages while an existing session is loading. The visible states are: loading shell with no messages, then the loaded transcript settled at the bottom.
+- `session/load` remains the source of truth for the initial transcript. When replay finishes, reveal the replayed transcript without animated insertion or animated scrolling, and remove the loading indicator.
 - If a user sends while an existing session is still attaching and `session/prompt` cannot be proven safe before load completion, keep the UI responsive with a local user bubble and queue the prompt until replay attachment completes.
 - Show transcript messages in a ChatGPT/Codex-like mobile layout.
 - Render Markdown in text messages as attributed text.
