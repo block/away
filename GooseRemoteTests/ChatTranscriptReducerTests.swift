@@ -13,6 +13,35 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertEqual(reducer.messages[0].content, [.text("Hello world")])
     }
 
+    func testLateAssistantReplayChunksDoNotDuplicateSnapshotText() {
+        var reducer = ChatTranscriptReducer(
+            messages: [
+                ChatMessage(id: "m1", role: .assistant, content: [.text("Hello world")])
+            ],
+            runtime: SessionRuntime(snapshotMessageIDs: ["m1"])
+        )
+
+        _ = reducer.apply(notification(kind: "agent_message_chunk", messageID: "m1", text: "Hello"))
+        _ = reducer.apply(notification(kind: "agent_message_chunk", messageID: "m1", text: " world"))
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].content, [.text("Hello world")])
+    }
+
+    func testSnapshotAssistantMessageReplacesWhitespaceVariantEcho() {
+        var reducer = ChatTranscriptReducer(
+            messages: [
+                ChatMessage(id: "m1", role: .assistant, content: [.text("Hello")])
+            ],
+            runtime: SessionRuntime(snapshotMessageIDs: ["m1"])
+        )
+
+        _ = reducer.apply(notification(kind: "agent_message_chunk", messageID: "m1", text: " Hello from replay"))
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].content, [.text(" Hello from replay")])
+    }
+
     func testReplayUserChunkSeparatesAssistantTurns() {
         var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
 
@@ -60,6 +89,90 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertEqual(reducer.messages.count, 1)
         XCTAssertEqual(reducer.messages[0].role, .user)
         XCTAssertEqual(reducer.messages[0].content, [.text("hi there")])
+    }
+
+    func testOptimisticUserMessageIgnoresMatchingServerEchoChunks() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        reducer.appendLocalUserMessage(id: "u1", text: "hello")
+        _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "u1", text: "hel"))
+        _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "u1", text: "lo"))
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].content, [.text("hello")])
+    }
+
+    func testOptimisticUserMessageReplacesWithLongerServerEcho() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        reducer.appendLocalUserMessage(id: "u1", text: "hello")
+        _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "u1", text: "hello!"))
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].content, [.text("hello!")])
+    }
+
+    func testOptimisticUserMessageReplacesWhitespaceVariantEcho() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        reducer.appendLocalUserMessage(id: "u1", text: "hello")
+        _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "u1", text: " hello from replay"))
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].content, [.text(" hello from replay")])
+    }
+
+    func testOptimisticUserMessageIgnoresServerEchoWithDifferentIDAndSameText() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        reducer.appendLocalUserMessage(id: "local-id", text: "hello")
+        _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "server-id", text: " hello "))
+
+        XCTAssertEqual(reducer.messages.map(\.id), ["local-id"])
+        XCTAssertEqual(reducer.messages[0].content, [.text("hello")])
+    }
+
+    func testSnapshotUserMessageIgnoresMatchingReplayChunks() {
+        var reducer = ChatTranscriptReducer(
+            messages: [
+                ChatMessage(id: "u1", role: .user, content: [.text("hello")])
+            ],
+            runtime: SessionRuntime(snapshotMessageIDs: ["u1"])
+        )
+
+        _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "u1", text: "hel"))
+        _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "u1", text: "lo"))
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].content, [.text("hello")])
+    }
+
+    func testSnapshotUserMessageReplacesWhitespaceVariantEcho() {
+        var reducer = ChatTranscriptReducer(
+            messages: [
+                ChatMessage(id: "u1", role: .user, content: [.text("hello")])
+            ],
+            runtime: SessionRuntime(snapshotMessageIDs: ["u1"])
+        )
+
+        _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "u1", text: " hello from replay"))
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].content, [.text(" hello from replay")])
+    }
+
+    func testSnapshotUserMessageIgnoresServerEchoWithDifferentIDAndSameText() {
+        var reducer = ChatTranscriptReducer(
+            messages: [
+                ChatMessage(id: "local-id", role: .user, content: [.text("hello")])
+            ],
+            runtime: SessionRuntime(snapshotMessageIDs: ["local-id"])
+        )
+
+        _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "server-id", text: " hello "))
+
+        XCTAssertEqual(reducer.messages.map(\.id), ["local-id"])
+        XCTAssertEqual(reducer.messages[0].content, [.text("hello")])
     }
 
     func testAssistantOnlyUserReplayChunkIsHidden() {

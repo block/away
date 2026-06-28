@@ -26,10 +26,29 @@ struct ChatMessage: Identifiable, Equatable, Sendable {
         self.content = content
         self.isStreaming = isStreaming
     }
+
+    var plainText: String? {
+        let text = content.compactMap { content -> String? in
+            if case .text(let value) = content {
+                return value
+            }
+            return nil
+        }
+        .joined(separator: "\n")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return text.isEmpty ? nil : text
+    }
 }
 
 struct SessionRuntime: Equatable, Sendable {
+    var isOpening = false
     var isReplaying = false
+    var hasTailSnapshot = false
+    var hasAuthoritativeReplay = false
+    var queuedPromptCount = 0
+    var optimisticUserMessageIDs: Set<String> = []
+    var snapshotMessageIDs: Set<String> = []
     var activeRunID: String?
     var streamingMessageID: String?
     var errorMessage: String?

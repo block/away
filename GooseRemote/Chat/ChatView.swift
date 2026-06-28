@@ -9,15 +9,24 @@ struct ChatView: View {
         let session = model.sessions.first { $0.id == sessionID }
         let messages = model.messagesBySession[sessionID] ?? []
         let runtime = model.runtimeBySession[sessionID] ?? SessionRuntime()
+        let earlierMessageCount = model.earlierMessagesBySession[sessionID]?.count ?? 0
 
         VStack(spacing: 0) {
-            if runtime.isReplaying {
-                ProgressView("Loading transcript")
+            if runtime.isOpening || runtime.isReplaying {
+                ProgressView(runtime.hasTailSnapshot ? "Loading full transcript" : "Opening session")
                     .font(.caption)
                     .padding(.vertical, 8)
             }
 
-            MessageTimelineView(messages: messages, isReplaying: runtime.isReplaying)
+            MessageTimelineView(
+                session: session,
+                messages: messages,
+                isOpening: runtime.isOpening,
+                isReplaying: runtime.isReplaying,
+                earlierMessageCount: earlierMessageCount
+            ) {
+                model.revealEarlierMessages(for: sessionID)
+            }
 
             if let error = runtime.errorMessage {
                 Text(error)
@@ -32,7 +41,8 @@ struct ChatView: View {
                     get: { model.draftBySession[sessionID] ?? "" },
                     set: { model.draftBySession[sessionID] = $0 }
                 ),
-                isSteering: runtime.activeRunID != nil
+                isSteering: runtime.activeRunID != nil,
+                statusLabel: runtime.queuedPromptCount > 0 ? "Sending when connected" : nil
             ) {
                 Task { await model.sendDraft(for: sessionID) }
             }
@@ -55,8 +65,12 @@ struct ChatView: View {
 }
 
 private struct MessageTimelineView: View {
+    let session: SessionSummary?
     let messages: [ChatMessage]
+    let isOpening: Bool
     let isReplaying: Bool
+    let earlierMessageCount: Int
+    let onRevealEarlierMessages: () -> Void
     @State private var isNearBottom = true
 
     private let bottomID = "goose-transcript-bottom"
@@ -65,6 +79,21 @@ private struct MessageTimelineView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
+                    if let session, messages.isEmpty, isOpening {
+                        ChatSessionShellView(session: session)
+                            .transition(.opacity)
+                    }
+
+                    if earlierMessageCount > 0 {
+                        Button(action: onRevealEarlierMessages) {
+                            Label("\(earlierMessageCount) earlier messages", systemImage: "clock.arrow.circlepath")
+                        }
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                    }
+
                     ForEach(messages) { message in
                         MessageBubbleView(message: message)
                             .id(message.id)
@@ -108,5 +137,39 @@ private struct MessageTimelineView: View {
         } else {
             proxy.scrollTo(bottomID, anchor: .bottom)
         }
+    }
+}
+
+private struct ChatSessionShellView: View {
+    let session: SessionSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(session.displayTitle)
+                .font(.headline)
+            if let subtitle = session.subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            if let cwd = session.cwd, !cwd.isEmpty {
+                Text(cwd)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(2)
+            }
+            HStack(spacing: 10) {
+                if session.messageCount > 0 {
+                    Label("\(session.messageCount)", systemImage: "text.bubble")
+                }
+                if let activityAt = session.activityAt {
+                    Text(activityAt, style: .relative)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
     }
 }
