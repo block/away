@@ -166,6 +166,17 @@ final class AppModel {
     }
 
     func openSession(_ sessionID: String, preservingExistingMessages: Bool = false) async {
+        if !preservingExistingMessages,
+           runtimeBySession[sessionID]?.hasAuthoritativeReplay == true {
+            activeSessionID = sessionID
+            var runtime = runtimeBySession[sessionID] ?? SessionRuntime()
+            runtime.isOpening = false
+            runtime.isReplaying = false
+            runtime.errorMessage = nil
+            runtimeBySession[sessionID] = runtime
+            return
+        }
+
         var openToken = prepareOpenSessionState(
             sessionID,
             preservingExistingMessages: preservingExistingMessages

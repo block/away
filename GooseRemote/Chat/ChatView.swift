@@ -70,9 +70,9 @@ private struct MessageTimelineView: View {
     let isLoading: Bool
     let earlierMessageCount: Int
     let onRevealEarlierMessages: () -> Void
-    @State private var isNearBottom = true
 
     private let bottomID = "goose-transcript-bottom"
+    private var messageIDs: [String] { messages.map(\.id) }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -107,30 +107,34 @@ private struct MessageTimelineView: View {
                     transaction.animation = nil
                 }
             }
-            .defaultScrollAnchor(.bottom)
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                let visibleBottom = geometry.contentOffset.y + geometry.containerSize.height
-                return visibleBottom >= geometry.contentSize.height - 96
-            } action: { _, newValue in
-                isNearBottom = newValue
-            }
-            .onChange(of: messages) { _, _ in
-                guard !isLoading, isNearBottom else { return }
-                scrollToBottom(proxy)
+            .onChange(of: messageIDs) { _, _ in
+                guard !isLoading else { return }
+                settleToBottom(proxy)
             }
             .onChange(of: isLoading) { _, newValue in
                 guard !newValue else { return }
-                scrollToBottom(proxy)
+                settleToBottom(proxy)
             }
-            .task {
+            .task(id: isLoading) {
+                guard !isLoading else { return }
                 await Task.yield()
                 scrollToBottom(proxy)
             }
         }
     }
 
+    private func settleToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            scrollToBottom(proxy)
+        }
+    }
+
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        proxy.scrollTo(bottomID, anchor: .bottom)
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            proxy.scrollTo(bottomID, anchor: .bottom)
+        }
     }
 }
 

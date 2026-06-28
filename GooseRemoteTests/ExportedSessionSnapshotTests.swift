@@ -264,6 +264,30 @@ final class ExportedSessionSnapshotTests: XCTestCase {
     }
 
     @MainActor
+    func testOpeningAuthoritativeSessionReusesLoadedTranscript() async {
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.messagesBySession["s1"] = [
+            ChatMessage(id: "loaded", role: .assistant, content: [.text("already loaded")])
+        ]
+        model.runtimeBySession["s1"] = SessionRuntime(
+            isOpening: true,
+            isReplaying: true,
+            hasAuthoritativeReplay: true,
+            errorMessage: "stale"
+        )
+
+        await model.openSession("s1")
+
+        XCTAssertEqual(model.activeSessionID, "s1")
+        XCTAssertEqual(model.messagesBySession["s1"]?.map(\.id), ["loaded"])
+        XCTAssertEqual(model.runtimeBySession["s1"]?.isOpening, false)
+        XCTAssertEqual(model.runtimeBySession["s1"]?.isReplaying, false)
+        XCTAssertEqual(model.runtimeBySession["s1"]?.hasAuthoritativeReplay, true)
+        XCTAssertNil(model.runtimeBySession["s1"]?.errorMessage)
+        XCTAssertEqual(model.connectionState, .disconnected)
+    }
+
+    @MainActor
     func testQueuedPromptAttachRetryDecisionIsBoundedAndSetsGiveUpError() {
         let model = AppModel(connectionConfig: makeTestConnectionConfig())
         model.setQueuedPromptsForTesting([QueuedPrompt(id: "q1", text: "queued")], for: "s1")
