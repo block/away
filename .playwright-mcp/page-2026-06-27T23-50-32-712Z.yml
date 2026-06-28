@@ -1,0 +1,914 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic "Simulator status" [ref=e5]:
+        - button "Toggle simulators sidebar" [ref=e6] [cursor=pointer]:
+          - generic [ref=e7]: iPhone 17 Pro
+        - generic [ref=e8]: live
+      - generic [ref=e10]:
+        - generic [ref=e275]:
+          - button "Action" [ref=e276] [cursor=pointer]:
+            - img [ref=e277]
+          - button "Volume Up" [ref=e278] [cursor=pointer]:
+            - img [ref=e279]
+          - button "Volume Down" [ref=e280] [cursor=pointer]:
+            - img [ref=e281]
+          - button "Power" [ref=e282] [cursor=pointer]:
+            - img [ref=e283]
+          - img
+        - separator "Resize simulator width. Drag the corner or use Left and Right Arrow keys; hold Shift for larger steps." [ref=e16]:
+          - img
+        - generic: 341 × 682
+      - generic [ref=e17]:
+        - generic "Simulator actions" [ref=e18]:
+          - generic [ref=e19]:
+            - button "Home" [ref=e20] [cursor=pointer]:
+              - img [ref=e21]
+              - tooltip: Home
+            - button "Screenshot" [ref=e23] [cursor=pointer]:
+              - img [ref=e24]
+              - tooltip: Screenshot
+            - button "Rotate device" [ref=e26] [cursor=pointer]:
+              - img [ref=e27]
+              - tooltip: Rotate device
+        - generic "Accessibility overlay" [ref=e31]:
+          - button "Show accessibility overlay" [ref=e32] [cursor=pointer]:
+            - img [ref=e33]
+            - tooltip: AX off
+    - generic [ref=e1256]:
+      - button "Open tools panel" [ref=e1257] [cursor=pointer]:
+        - img [ref=e1258]
+      - button "Open WebKit DevTools" [ref=e1260] [cursor=pointer]:
+        - img [ref=e1261]
+    - complementary:
+      - generic:
+        - generic: Tools
+        - button [active]:
+          - img
+    - separator
+    - complementary:
+      - generic:
+        - generic: No inspectable Safari or WKWebView targets
+        - button:
+          - img
+      - generic:
+        - generic: Open Safari or an inspectable WKWebView in the simulator.
+    - separator
+  - complementary:
+    - generic:
+      - button [pressed]:
+        - img
+      - generic: Devices
+    - generic:
+      - generic:
+        - img
+        - textbox:
+          - /placeholder: Search
+    - generic:
+      - generic:
+        - generic: Available
+        - generic:
+          - button [pressed]:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 17 Pro
+              - generic: Streaming
+            - generic:
+              - generic: "26.5"
+              - button:
+                - img
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Pro 11-inch (M4)
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_26.0
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_26.0
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_26.0
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPhone 14_26.0
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 16
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 16 Plus
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 16 Pro
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 16 Pro Max
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 16e
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 16e
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 17
+            - generic:
+              - generic: "26.5"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 17
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 17
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 17 Pro
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 17 Pro
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 17 Pro Max
+            - generic:
+              - generic: "26.5"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 17 Pro Max
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 17 Pro Max
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone 17e
+            - generic:
+              - generic: "26.5"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone Air
+            - generic:
+              - generic: "26.5"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone Air
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone Air
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPhone SE (3rd generation)
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_18.1
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_26.0
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_26.0
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_26.0
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_26.0
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: BAZEL_TEST_iPad Air (5th generation)_26.2
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad (10th generation)
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad (A16)
+            - generic:
+              - generic: "26.5"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad (A16)
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad (A16)
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Air 11-inch (M2)
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Air 11-inch (M3)
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Air 11-inch (M3)
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Air 11-inch (M4)
+            - generic:
+              - generic: "26.5"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Air 13-inch (M2)
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Air 13-inch (M3)
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Air 13-inch (M3)
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Air 13-inch (M4)
+            - generic:
+              - generic: "26.5"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad mini (A17 Pro)
+            - generic:
+              - generic: "26.5"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad mini (A17 Pro)
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad mini (A17 Pro)
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad mini (A17 Pro)
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Pro 11-inch (M4)
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Pro 11-inch (M5)
+            - generic:
+              - generic: "26.5"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Pro 11-inch (M5)
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Pro 11-inch (M5)
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Pro 13-inch (M4)
+            - generic:
+              - generic: "26.0"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Pro 13-inch (M4)
+            - generic:
+              - generic: "18.1"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Pro 13-inch (M5)
+            - generic:
+              - generic: "26.5"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Pro 13-inch (M5)
+            - generic:
+              - generic: "26.2"
+          - button:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic: iPad Pro 13-inch (M5)
+            - generic:
+              - generic: "26.0"
+    - generic:
+      - generic:
+        - generic:
+          - generic: 1/247 sims
+          - text: ·
+          - generic: 80 GB free
+  - separator
+  - button "Open devices sidebar" [ref=e1253] [cursor=pointer]:
+    - img [ref=e1254]
