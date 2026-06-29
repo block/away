@@ -21,8 +21,7 @@ struct MessageBubbleView: View {
             }
             .padding(.horizontal, message.role == .user ? 14 : 0)
             .padding(.vertical, message.role == .user ? 10 : 2)
-            .background(message.role == .user ? Color.accentColor.opacity(0.16) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .modifier(UserBubbleChrome(isUser: message.role == .user))
             .frame(maxWidth: message.role == .user ? 310 : .infinity, alignment: message.role == .user ? .trailing : .leading)
 
             if message.role != .user {
@@ -46,6 +45,21 @@ struct MessageBubbleView: View {
             Text(text)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct UserBubbleChrome: ViewModifier {
+    let isUser: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isUser {
+            content
+                .background(Color.accentColor.opacity(0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        } else {
+            content
         }
     }
 }
