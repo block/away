@@ -91,10 +91,9 @@ struct SessionListView: View {
             LazyVStack(spacing: 0) {
                 ForEach(Array(model.sessions.enumerated()), id: \.element.id) { index, session in
                     Button {
+                        guard path.isEmpty else { return }
                         model.prepareSessionForNavigation(session.id)
-                        if path.isEmpty {
-                            path.append(session.id)
-                        }
+                        path.append(session.id)
                     } label: {
                         VStack(spacing: 0) {
                             SessionRowView(session: session)
