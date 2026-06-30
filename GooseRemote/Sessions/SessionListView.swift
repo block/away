@@ -11,8 +11,8 @@ struct SessionListView: View {
                 LazyVStack(alignment: .leading, spacing: 20) {
                     header
 
-                    if let error = model.errorMessage {
-                        ErrorBanner(message: error) {
+                    if SessionListPresentation.shouldShowFailureView(connectionState: model.connectionState) {
+                        ConnectionFailureView(message: model.errorMessage) {
                             Task { await model.connect() }
                         }
                     }
@@ -68,12 +68,10 @@ struct SessionListView: View {
     }
 
     private var shouldShowConnectionLine: Bool {
-        switch model.connectionState {
-        case .connected:
-            model.demoBackgroundKeepaliveEnabled
-        case .connecting, .disconnected, .failed:
-            true
-        }
+        SessionListPresentation.shouldShowConnectionLine(
+            connectionState: model.connectionState,
+            isKeepaliveEnabled: model.demoBackgroundKeepaliveEnabled
+        )
     }
 
     @ViewBuilder
@@ -125,6 +123,29 @@ struct SessionListView: View {
         case .failed:
             "Connection failed"
         }
+    }
+}
+
+enum SessionListPresentation {
+    static func shouldShowConnectionLine(
+        connectionState: AppModel.ConnectionState,
+        isKeepaliveEnabled: Bool
+    ) -> Bool {
+        switch connectionState {
+        case .connected:
+            isKeepaliveEnabled
+        case .connecting, .disconnected:
+            true
+        case .failed:
+            false
+        }
+    }
+
+    static func shouldShowFailureView(connectionState: AppModel.ConnectionState) -> Bool {
+        if case .failed = connectionState {
+            return true
+        }
+        return false
     }
 }
 
@@ -188,33 +209,32 @@ private struct ConnectionLine: View {
     }
 }
 
-private struct ErrorBanner: View {
-    let message: String
+private struct ConnectionFailureView: View {
+    let message: String?
     let retry: () -> Void
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text("Connection failed")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Couldn’t connect")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.primary)
 
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            Spacer(minLength: 8)
+                Text(message ?? "Goose Remote could not reach the configured ACP target.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Button(action: retry) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.callout.weight(.medium))
-                    .frame(width: 36, height: 36)
+                Label("Retry", systemImage: "arrow.clockwise")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .buttonStyle(.borderless)
             .accessibilityLabel("Retry connection")
         }
-        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 16)
     }
 }
 
