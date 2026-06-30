@@ -4,6 +4,7 @@ import UIKit
 
 struct UIKitTranscriptSurface: UIViewRepresentable {
     let rows: [TranscriptSurfaceRow]
+    let isLoading: Bool
     let earlierMessageCount: Int
     let scrollIntent: TranscriptScrollIntent?
     let onReachTop: () -> Void
@@ -24,6 +25,9 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         tableView.onBoundsSizeChanged = { [weak coordinator = context.coordinator] tableView, oldSize, newSize in
             coordinator?.tableViewBoundsDidChange(tableView, oldSize: oldSize, newSize: newSize)
         }
+        tableView.onContentSizeChanged = { [weak coordinator = context.coordinator] tableView, oldSize, newSize in
+            coordinator?.tableViewContentSizeDidChange(tableView, oldSize: oldSize, newSize: newSize)
+        }
         return tableView
     }
 
@@ -33,6 +37,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         context.coordinator.update(
             tableView: tableView,
             rows: rows,
+            isLoading: isLoading,
             earlierMessageCount: earlierMessageCount,
             scrollIntent: scrollIntent
         )
@@ -50,6 +55,9 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         private var didInitialBottomScroll = false
         private var isApplyingProgrammaticScroll = false
         private var programmaticScrollGeneration = 0
+        private var hiddenBottomSettleGeneration = 0
+        private var wasLoading = false
+        private var measuredHeightsByRowID: [String: CGFloat] = [:]
 
         init(
             onReachTop: @escaping () -> Void,
@@ -62,6 +70,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         func update(
             tableView: UITableView,
             rows newRows: [TranscriptSurfaceRow],
+            isLoading: Bool = false,
             earlierMessageCount: Int,
             scrollIntent: TranscriptScrollIntent?
         ) {
@@ -69,9 +78,22 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             let oldIDs = oldRows.map(\.id)
             let newIDs = newRows.map(\.id)
             let wasNearBottom = isNearBottom(tableView)
+            let wasLoadingBeforeUpdate = wasLoading
             let anchor = wasNearBottom ? nil : visibleAnchor(in: tableView, rows: oldRows)
             let shouldApplyScrollIntent = shouldApply(scrollIntent, wasNearBottom: wasNearBottom)
+            let shouldHideForInitialSettle = shouldHideForInitialBottomSettle(
+                oldRows: oldRows,
+                newRows: newRows,
+                isLoading: isLoading,
+                wasLoading: wasLoadingBeforeUpdate,
+                tableView: tableView
+            )
+            wasLoading = isLoading
             currentEarlierMessageCount = earlierMessageCount
+            pruneMeasuredHeights(oldRows: oldRows, newRows: newRows)
+            if shouldHideForInitialSettle {
+                beginHiddenBottomSettle(in: tableView)
+            }
 
             dataSource.rows = newRows
 
@@ -105,6 +127,35 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
 
             reportNearBottomIfNeeded(tableView)
             triggerEarlierRevealIfNeeded(earlierMessageCount: earlierMessageCount, tableView: tableView)
+            if shouldHideForInitialSettle {
+                continueHiddenBottomSettle(
+                    in: tableView,
+                    generation: hiddenBottomSettleGeneration,
+                    pass: 0,
+                    previousContentHeight: tableView.contentSize.height
+                )
+            }
+        }
+
+        func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
+            guard indexPath.row < dataSource.rows.count else {
+                return tableView.estimatedRowHeight
+            }
+
+            let row = dataSource.rows[indexPath.row]
+            if let measuredHeight = measuredHeightsByRowID[row.id] {
+                return measuredHeight
+            }
+
+            return TranscriptRowHeightEstimator.estimatedHeight(
+                for: row,
+                tableWidth: tableView.bounds.width
+            )
+        }
+
+        func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+            guard indexPath.row < dataSource.rows.count, cell.bounds.height > 0 else { return }
+            measuredHeightsByRowID[dataSource.rows[indexPath.row].id] = cell.bounds.height
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -134,6 +185,24 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             _ = scrollToBottom(in: tableView, animated: false)
         }
 
+        func tableViewContentSizeDidChange(_ tableView: UITableView, oldSize: CGSize, newSize: CGSize) {
+            guard oldSize.height != newSize.height, !dataSource.rows.isEmpty else { return }
+            let wasNearBottom = isNearBottom(
+                tableView,
+                visibleHeight: tableView.bounds.height,
+                contentHeight: oldSize.height
+            )
+            guard tableView.alpha == 0 || wasNearBottom else {
+                reportNearBottomIfNeeded(tableView)
+                return
+            }
+
+            UIView.performWithoutAnimation {
+                pinToBottom(in: tableView)
+            }
+            reportNearBottomIfNeeded(tableView)
+        }
+
         private func shouldApply(_ scrollIntent: TranscriptScrollIntent?, wasNearBottom: Bool) -> Bool {
             guard let scrollIntent else { return false }
             guard appliedScrollSequence != scrollIntent.sequence else { return false }
@@ -144,7 +213,9 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         private func apply(_ scrollIntent: TranscriptScrollIntent, in tableView: UITableView) -> Bool {
             switch scrollIntent.target {
             case .message(let id):
-                guard let row = dataSource.rows.firstIndex(where: { $0.id == "message:\(id)" }) else { return false }
+                guard let row = dataSource.rows.firstIndex(where: { row in
+                    row.id == "message:\(id)" || row.id.hasPrefix("message:\(id)::chunk:")
+                }) else { return false }
                 return scrollToRow(row, anchor: scrollIntent.anchor, animated: scrollIntent.animated, in: tableView)
             case .bottom:
                 return scrollToBottom(in: tableView, animated: scrollIntent.animated)
@@ -154,6 +225,19 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         private func scrollToBottom(in tableView: UITableView, animated: Bool) -> Bool {
             guard !dataSource.rows.isEmpty else { return false }
             return scrollToRow(dataSource.rows.count - 1, anchor: .bottom, animated: animated, in: tableView)
+        }
+
+        @discardableResult
+        private func pinToBottom(in tableView: UITableView) -> Bool {
+            guard !dataSource.rows.isEmpty else { return false }
+            tableView.layoutIfNeeded()
+            let minimumOffsetY = -tableView.adjustedContentInset.top
+            let maximumOffsetY = max(
+                minimumOffsetY,
+                tableView.contentSize.height - tableView.bounds.height + tableView.adjustedContentInset.bottom
+            )
+            tableView.setContentOffset(CGPoint(x: 0, y: maximumOffsetY), animated: false)
+            return true
         }
 
         private func scrollToRow(
@@ -212,7 +296,11 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
                 }
 
                 tableView.layoutIfNeeded()
-                tableView.scrollToRow(at: indexPath, at: position, animated: false)
+                if anchor == .bottom, indexPath.row == self.dataSource.rows.count - 1 {
+                    self.pinToBottom(in: tableView)
+                } else {
+                    tableView.scrollToRow(at: indexPath, at: position, animated: false)
+                }
                 self.reportNearBottomIfNeeded(tableView)
                 self.triggerEarlierRevealIfNeeded(
                     earlierMessageCount: self.currentEarlierMessageCount,
@@ -220,6 +308,97 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
                 )
             }
             return true
+        }
+
+        private func pruneMeasuredHeights(
+            oldRows: [TranscriptSurfaceRow],
+            newRows: [TranscriptSurfaceRow]
+        ) {
+            let oldRowsByID = Dictionary(uniqueKeysWithValues: oldRows.map { ($0.id, $0) })
+            let newRowsByID = Dictionary(uniqueKeysWithValues: newRows.map { ($0.id, $0) })
+            measuredHeightsByRowID = measuredHeightsByRowID.filter { rowID, _ in
+                guard let oldRow = oldRowsByID[rowID],
+                      let newRow = newRowsByID[rowID]
+                else {
+                    return false
+                }
+
+                return oldRow == newRow
+            }
+        }
+
+        private func shouldHideForInitialBottomSettle(
+            oldRows: [TranscriptSurfaceRow],
+            newRows: [TranscriptSurfaceRow],
+            isLoading: Bool,
+            wasLoading: Bool,
+            tableView: UITableView
+        ) -> Bool {
+            let isLoadingReveal = isLoading || wasLoading
+            guard isLoadingReveal,
+                  tableView.bounds.height > 0,
+                  oldRows.isEmpty || oldRows.allSatisfy(\.isSessionShell),
+                  newRows.contains(where: \.isMessage)
+            else {
+                return false
+            }
+
+            let estimatedHeight = newRows.reduce(CGFloat.zero) { partialResult, row in
+                partialResult + TranscriptRowHeightEstimator.estimatedHeight(
+                    for: row,
+                    tableWidth: tableView.bounds.width
+                )
+            }
+            return estimatedHeight > tableView.bounds.height * 1.15
+        }
+
+        private func beginHiddenBottomSettle(in tableView: UITableView) {
+            hiddenBottomSettleGeneration += 1
+            UIView.performWithoutAnimation {
+                tableView.alpha = 0
+            }
+        }
+
+        private func continueHiddenBottomSettle(
+            in tableView: UITableView,
+            generation: Int,
+            pass: Int,
+            previousContentHeight: CGFloat
+        ) {
+            DispatchQueue.main.async { [weak self, weak tableView] in
+                guard let self,
+                      let tableView,
+                      self.hiddenBottomSettleGeneration == generation
+                else {
+                    return
+                }
+
+                UIView.performWithoutAnimation {
+                    tableView.layoutIfNeeded()
+                    self.pinToBottom(in: tableView)
+                }
+
+                let contentHeight = tableView.contentSize.height
+                let contentSizeChanged = abs(contentHeight - previousContentHeight) > 0.5
+                if pass < 90 || (pass < 120 && contentSizeChanged) {
+                    self.continueHiddenBottomSettle(
+                        in: tableView,
+                        generation: generation,
+                        pass: pass + 1,
+                        previousContentHeight: contentHeight
+                    )
+                    return
+                }
+
+                UIView.performWithoutAnimation {
+                    tableView.alpha = 1
+                }
+                self.reportNearBottomIfNeeded(tableView)
+                self.triggerEarlierRevealIfNeeded(
+                    earlierMessageCount: self.currentEarlierMessageCount,
+                    tableView: tableView
+                )
+            }
         }
 
         private func reloadChangedVisibleRows(
@@ -279,9 +458,17 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         }
 
         private func isNearBottom(_ tableView: UITableView, visibleHeight: CGFloat) -> Bool {
+            isNearBottom(tableView, visibleHeight: visibleHeight, contentHeight: tableView.contentSize.height)
+        }
+
+        private func isNearBottom(
+            _ tableView: UITableView,
+            visibleHeight: CGFloat,
+            contentHeight: CGFloat
+        ) -> Bool {
             let threshold: CGFloat = 160
             let visibleBottom = tableView.contentOffset.y + visibleHeight - tableView.adjustedContentInset.bottom
-            return tableView.contentSize.height - visibleBottom <= threshold
+            return contentHeight - visibleBottom <= threshold
         }
 
         private func isNearTop(_ tableView: UITableView) -> Bool {
@@ -313,6 +500,196 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
                 onReachTop()
             }
         }
+    }
+}
+
+private extension TranscriptSurfaceRow {
+    var isSessionShell: Bool {
+        if case .sessionShell = self {
+            return true
+        }
+        return false
+    }
+
+    var isMessage: Bool {
+        if case .message = self {
+            return true
+        }
+        return false
+    }
+}
+
+enum TranscriptRowHeightEstimator {
+    private static let rowHorizontalPadding: CGFloat = 28
+    private static let messageRowVerticalPadding: CGFloat = 14
+    private static let sessionRowVerticalPadding: CGFloat = 32
+    private static let assistantTrailingSpacer: CGFloat = 24
+    private static let userLeadingSpacer: CGFloat = 40
+    private static let userBubbleMaxWidth: CGFloat = 310
+    private static let userBubbleHorizontalPadding: CGFloat = 28
+    private static let userBubbleVerticalPadding: CGFloat = 20
+    private static let assistantBubbleVerticalPadding: CGFloat = 4
+    private static let bodyLineHeight: CGFloat = 20
+    private static let captionLineHeight: CGFloat = 16
+    private static let contentSpacing: CGFloat = 8
+    private static let averageBodyCharacterWidth: CGFloat = 7.0
+    private static let minimumTextWidth: CGFloat = 120
+    private static let textRenderLimit = 12_000
+    private static let maximumEstimatedTextHeight: CGFloat = 7_200
+
+    static func estimatedHeight(for row: TranscriptSurfaceRow, tableWidth: CGFloat) -> CGFloat {
+        switch row {
+        case .sessionShell(let session):
+            return estimatedSessionShellHeight(session)
+        case .message(let message):
+            return estimatedMessageHeight(message, tableWidth: tableWidth)
+        }
+    }
+
+    private static func estimatedSessionShellHeight(_ session: SessionSummary) -> CGFloat {
+        var height = sessionRowVerticalPadding
+        height += 22
+
+        if let subtitle = session.subtitle, !subtitle.isEmpty {
+            height += 8 + estimatedWrappedTextHeight(
+                subtitle,
+                availableWidth: 320,
+                lineHeight: 18,
+                averageCharacterWidth: 6.5,
+                maximumHeight: 72
+            )
+        }
+
+        if let cwd = session.cwd, !cwd.isEmpty {
+            height += 8 + min(
+                estimatedWrappedTextHeight(
+                    cwd,
+                    availableWidth: 320,
+                    lineHeight: captionLineHeight,
+                    averageCharacterWidth: 6.2,
+                    maximumHeight: captionLineHeight * 2
+                ),
+                captionLineHeight * 2
+            )
+        }
+
+        if session.messageCount > 0 || session.activityAt != nil {
+            height += 8 + captionLineHeight
+        }
+
+        return max(height, 72)
+    }
+
+    private static func estimatedMessageHeight(_ message: ChatMessage, tableWidth: CGFloat) -> CGFloat {
+        let availableTextWidth = textWidth(for: message.role, tableWidth: tableWidth)
+        var contentHeight: CGFloat = 0
+
+        for content in message.content {
+            let height = estimatedContentHeight(content, availableTextWidth: availableTextWidth)
+            if contentHeight > 0 {
+                contentHeight += contentSpacing
+            }
+            contentHeight += height
+        }
+
+        if message.isStreaming, message.content.isEmpty {
+            contentHeight = captionLineHeight
+        }
+
+        let bubbleVerticalPadding = message.role == .user ? userBubbleVerticalPadding : assistantBubbleVerticalPadding
+        return max(messageRowVerticalPadding + bubbleVerticalPadding + contentHeight, 44)
+    }
+
+    private static func estimatedContentHeight(
+        _ content: ChatContent,
+        availableTextWidth: CGFloat
+    ) -> CGFloat {
+        switch content {
+        case .text(let text):
+            return estimatedTranscriptTextHeight(text, availableWidth: availableTextWidth)
+        case .image:
+            return 22
+        case .tool(let tool):
+            return estimatedToolHeight(tool, availableWidth: availableTextWidth)
+        case .system(let text):
+            return estimatedWrappedTextHeight(
+                text,
+                availableWidth: availableTextWidth,
+                lineHeight: captionLineHeight,
+                averageCharacterWidth: 6.2,
+                maximumHeight: 600
+            )
+        }
+    }
+
+    private static func estimatedTranscriptTextHeight(
+        _ text: String,
+        availableWidth: CGFloat
+    ) -> CGFloat {
+        let displayText = String(text.prefix(textRenderLimit))
+        var height = estimatedWrappedTextHeight(
+            displayText,
+            availableWidth: availableWidth,
+            lineHeight: bodyLineHeight,
+            averageCharacterWidth: averageBodyCharacterWidth,
+            maximumHeight: maximumEstimatedTextHeight
+        )
+
+        if text.count > textRenderLimit {
+            height += 6 + captionLineHeight
+        }
+
+        return height
+    }
+
+    private static func estimatedToolHeight(
+        _ tool: ToolActivity,
+        availableWidth: CGFloat
+    ) -> CGFloat {
+        var height: CGFloat = 20 + 20
+        if let result = tool.result, !result.isEmpty {
+            height += 6 + min(
+                estimatedWrappedTextHeight(
+                    result,
+                    availableWidth: availableWidth - 20,
+                    lineHeight: captionLineHeight,
+                    averageCharacterWidth: 6.2,
+                    maximumHeight: captionLineHeight * 4
+                ),
+                captionLineHeight * 4
+            )
+        }
+        return height
+    }
+
+    private static func textWidth(for role: ChatMessage.Role, tableWidth: CGFloat) -> CGFloat {
+        let safeTableWidth = max(tableWidth, minimumTextWidth + rowHorizontalPadding + assistantTrailingSpacer)
+        switch role {
+        case .user:
+            let bubbleWidth = min(
+                userBubbleMaxWidth,
+                safeTableWidth - rowHorizontalPadding - userLeadingSpacer
+            )
+            return max(bubbleWidth - userBubbleHorizontalPadding, minimumTextWidth)
+        case .assistant, .system:
+            return max(safeTableWidth - rowHorizontalPadding - assistantTrailingSpacer, minimumTextWidth)
+        }
+    }
+
+    private static func estimatedWrappedTextHeight(
+        _ text: String,
+        availableWidth: CGFloat,
+        lineHeight: CGFloat,
+        averageCharacterWidth: CGFloat,
+        maximumHeight: CGFloat
+    ) -> CGFloat {
+        let safeWidth = max(availableWidth, minimumTextWidth)
+        let charactersPerLine = max(Int((safeWidth / averageCharacterWidth).rounded(.down)), 1)
+        let lineCount = text.split(separator: "\n", omittingEmptySubsequences: false).reduce(0) { partialResult, line in
+            partialResult + max(1, Int(ceil(Double(line.count) / Double(charactersPerLine))))
+        }
+
+        return min(max(CGFloat(lineCount) * lineHeight, lineHeight), maximumHeight)
     }
 }
 
@@ -348,17 +725,28 @@ enum TranscriptTableViewFactory {
 
 final class TranscriptTableView: UITableView {
     var onBoundsSizeChanged: ((TranscriptTableView, CGSize, CGSize) -> Void)?
+    var onContentSizeChanged: ((TranscriptTableView, CGSize, CGSize) -> Void)?
 
     private var lastLaidOutBoundsSize: CGSize = .zero
+    private var lastLaidOutContentSize: CGSize = .zero
 
     override func layoutSubviews() {
         let oldSize = lastLaidOutBoundsSize
+        let oldContentSize = lastLaidOutContentSize
         super.layoutSubviews()
 
         let newSize = bounds.size
-        defer { lastLaidOutBoundsSize = newSize }
-        guard oldSize != .zero, oldSize != newSize else { return }
-        onBoundsSizeChanged?(self, oldSize, newSize)
+        let newContentSize = contentSize
+        defer {
+            lastLaidOutBoundsSize = newSize
+            lastLaidOutContentSize = newContentSize
+        }
+        if oldSize != .zero, oldSize != newSize {
+            onBoundsSizeChanged?(self, oldSize, newSize)
+        }
+        if oldContentSize != .zero, oldContentSize != newContentSize {
+            onContentSizeChanged?(self, oldContentSize, newContentSize)
+        }
     }
 }
 

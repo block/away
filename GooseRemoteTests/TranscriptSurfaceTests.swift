@@ -5,7 +5,7 @@ import UIKit
 #endif
 
 final class TranscriptSurfaceTests: XCTestCase {
-    func testRowsUseSessionShellOnlyWhileLoadingEmptySession() {
+    func testRowsHideEmptyLoadingSessionUntilTranscriptRowsAreReady() {
         let session = SessionSummary(id: "s1", title: "Large Session", messageCount: 4_000)
 
         let rows = TranscriptSurfaceRows.make(
@@ -17,10 +17,10 @@ final class TranscriptSurfaceTests: XCTestCase {
             optimisticUserMessageIDs: []
         )
 
-        XCTAssertEqual(rows, [.sessionShell(session)])
+        XCTAssertEqual(rows, [])
     }
 
-    func testRowsUseSessionShellWhileOnlyProvisionalSnapshotIsLoading() {
+    func testRowsHideProvisionalSnapshotWhileLoading() {
         let session = SessionSummary(id: "s1", title: "Large Session", messageCount: 4_000)
         let messages = [
             ChatMessage(id: "snapshot-1", role: .assistant, content: [.text("Provisional tail")])
@@ -35,7 +35,7 @@ final class TranscriptSurfaceTests: XCTestCase {
             optimisticUserMessageIDs: []
         )
 
-        XCTAssertEqual(rows, [.sessionShell(session)])
+        XCTAssertEqual(rows, [])
     }
 
     func testRowsKeepOptimisticMessagesVisibleWhileSnapshotIsLoading() {
@@ -86,6 +86,49 @@ final class TranscriptSurfaceTests: XCTestCase {
         XCTAssertEqual(rows.count, 5_000)
         XCTAssertEqual(rows.first?.id, "message:message-0")
         XCTAssertEqual(rows.last?.id, "message:message-4999")
+    }
+
+    func testRowsSplitLongAssistantTextIntoStableChunks() {
+        let longText = String(repeating: "Large assistant transcript paragraph with enough text to require chunking. ", count: 180)
+        let message = ChatMessage(id: "assistant-1", role: .assistant, content: [.text(longText)])
+
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [message],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+
+        XCTAssertGreaterThan(rows.count, 1)
+        XCTAssertEqual(rows.first?.id, "message:assistant-1::chunk:0")
+        let chunkedText = rows.compactMap { row -> String? in
+            guard case .message(let message) = row,
+                  case .text(let text) = message.content.first
+            else {
+                return nil
+            }
+            return text
+        }
+        XCTAssertEqual(chunkedText.joined(), longText)
+        XCTAssertTrue(chunkedText.dropLast().allSatisfy { $0.count <= TranscriptTextChunker.defaultCharacterLimit + 1 })
+    }
+
+    func testRowsKeepLongUserTextAsSingleBubble() {
+        let longText = String(repeating: "Large user prompt. ", count: 260)
+        let message = ChatMessage(id: "user-1", role: .user, content: [.text(longText)])
+
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [message],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+
+        XCTAssertEqual(rows, [.message(message)])
     }
 
     func testBottomScrollPolicyRequestsOnlyWhenSettledAndNearBottom() {
@@ -150,6 +193,90 @@ final class TranscriptSurfaceTests: XCTestCase {
         XCTAssertLessThan(tableView.visibleCells.count, 30)
         XCTAssertLessThan(dataSource.createdCellCount, 60)
         _ = window
+    }
+
+    func testEstimatedRowHeightScalesForLongAssistantMessages() {
+        let shortRow = TranscriptSurfaceRow.message(
+            ChatMessage(id: "short", role: .assistant, content: [.text("Short response.")])
+        )
+        let longRow = TranscriptSurfaceRow.message(
+            ChatMessage(
+                id: "long",
+                role: .assistant,
+                content: [.text(String(repeating: "Long transcript response with enough words to wrap across many lines. ", count: 420))]
+            )
+        )
+
+        let shortHeight = TranscriptRowHeightEstimator.estimatedHeight(for: shortRow, tableWidth: 390)
+        let longHeight = TranscriptRowHeightEstimator.estimatedHeight(for: longRow, tableWidth: 390)
+
+        XCTAssertLessThan(shortHeight, 80)
+        XCTAssertGreaterThan(longHeight, 1_000)
+        XCTAssertGreaterThan(longHeight, shortHeight * 15)
+    }
+
+    func testEstimatedRowHeightAccountsForUserBubbleWidth() {
+        let text = String(repeating: "Wrapping text. ", count: 120)
+        let assistantRow = TranscriptSurfaceRow.message(
+            ChatMessage(id: "assistant", role: .assistant, content: [.text(text)])
+        )
+        let userRow = TranscriptSurfaceRow.message(
+            ChatMessage(id: "user", role: .user, content: [.text(text)])
+        )
+
+        let assistantHeight = TranscriptRowHeightEstimator.estimatedHeight(for: assistantRow, tableWidth: 390)
+        let userHeight = TranscriptRowHeightEstimator.estimatedHeight(for: userRow, tableWidth: 390)
+
+        XCTAssertGreaterThan(userHeight, assistantHeight)
+    }
+
+    @MainActor
+    func testCoordinatorHidesOversizedInitialTranscriptUntilBottomSettles() throws {
+        let harness = try makeCoordinatorHarness()
+        let rows = [
+            TranscriptSurfaceRow.message(
+                ChatMessage(
+                    id: "long",
+                    role: .assistant,
+                    content: [.text(String(repeating: "Large transcript row that should land pinned to the bottom after sizing. ", count: 520))]
+                )
+            )
+        ]
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: rows,
+            isLoading: true,
+            earlierMessageCount: 0,
+            scrollIntent: TranscriptScrollIntent(target: .bottom, anchor: .bottom, animated: false, sequence: 1)
+        )
+
+        XCTAssertEqual(harness.tableView.alpha, 0)
+        RunLoop.main.run(until: Date().addingTimeInterval(2.5))
+        harness.tableView.layoutIfNeeded()
+
+        XCTAssertEqual(harness.tableView.alpha, 1)
+        XCTAssertLessThanOrEqual(distanceFromBottom(harness.tableView), 170)
+    }
+
+    @MainActor
+    func testCoordinatorDoesNotHideShortInitialTranscript() throws {
+        let harness = try makeCoordinatorHarness()
+        let rows = [
+            TranscriptSurfaceRow.message(
+                ChatMessage(id: "short", role: .assistant, content: [.text("Short transcript.")])
+            )
+        ]
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: rows,
+            isLoading: true,
+            earlierMessageCount: 0,
+            scrollIntent: TranscriptScrollIntent(target: .bottom, anchor: .bottom, animated: false, sequence: 1)
+        )
+
+        XCTAssertEqual(harness.tableView.alpha, 1)
     }
 
     @MainActor
@@ -451,6 +578,9 @@ final class TranscriptSurfaceTests: XCTestCase {
         )
         tableView.onBoundsSizeChanged = { [weak coordinator] tableView, oldSize, newSize in
             coordinator?.tableViewBoundsDidChange(tableView, oldSize: oldSize, newSize: newSize)
+        }
+        tableView.onContentSizeChanged = { [weak coordinator] tableView, oldSize, newSize in
+            coordinator?.tableViewContentSizeDidChange(tableView, oldSize: oldSize, newSize: newSize)
         }
         let window = try host(tableView)
         return CoordinatorHarness(

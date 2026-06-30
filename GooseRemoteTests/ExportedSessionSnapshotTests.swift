@@ -288,7 +288,7 @@ final class ExportedSessionSnapshotTests: XCTestCase {
     }
 
     @MainActor
-    func testPreparingNavigationStartsStableOpeningShell() {
+    func testPreparingNavigationStartsStableLoadingState() {
         let model = AppModel(connectionConfig: makeTestConnectionConfig())
         model.messagesBySession["s1"] = [
             ChatMessage(id: "stale", role: .assistant, content: [.text("stale")])

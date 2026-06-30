@@ -34,7 +34,7 @@ enum TranscriptSurfaceRow: Identifiable, Equatable {
 
 enum TranscriptSurfaceRows {
     static func make(
-        session: SessionSummary?,
+        session _: SessionSummary?,
         messages: [ChatMessage],
         isLoading: Bool,
         hasAuthoritativeReplay: Bool,
@@ -49,11 +49,61 @@ enum TranscriptSurfaceRows {
             optimisticUserMessageIDs: optimisticUserMessageIDs
         )
 
-        if let session, presentedMessages.isEmpty, isLoading {
-            return [.sessionShell(session)]
+        return presentedMessages.flatMap(rows)
+    }
+
+    private static func rows(for message: ChatMessage) -> [TranscriptSurfaceRow] {
+        guard message.role == .assistant,
+              message.content.count == 1,
+              case .text(let text) = message.content[0]
+        else {
+            return [.message(message)]
         }
 
-        return presentedMessages.map(TranscriptSurfaceRow.message)
+        let chunks = TranscriptTextChunker.chunks(text)
+        guard chunks.count > 1 else { return [.message(message)] }
+
+        return chunks.enumerated().map { index, chunk in
+            var chunkedMessage = message
+            chunkedMessage.id = "\(message.id)::chunk:\(index)"
+            chunkedMessage.content = [.text(chunk)]
+            chunkedMessage.isStreaming = message.isStreaming && index == chunks.count - 1
+            return .message(chunkedMessage)
+        }
+    }
+}
+
+enum TranscriptTextChunker {
+    static let defaultCharacterLimit = 2_400
+
+    static func chunks(_ text: String, limit: Int = defaultCharacterLimit) -> [String] {
+        guard text.count > limit else { return [text] }
+
+        var chunks: [String] = []
+        var start = text.startIndex
+        while start < text.endIndex {
+            let limitedEnd = text.index(start, offsetBy: limit, limitedBy: text.endIndex) ?? text.endIndex
+            if limitedEnd == text.endIndex {
+                chunks.append(String(text[start..<limitedEnd]))
+                break
+            }
+
+            let slice = text[start..<limitedEnd]
+            let minimumBreak = text.index(start, offsetBy: limit * 2 / 3, limitedBy: limitedEnd) ?? start
+            let preferredBreak = slice[minimumBreak..<limitedEnd].lastIndex(where: { character in
+                character.isNewline || character.isWhitespace
+            }) ?? limitedEnd
+
+            let chunkEnd = preferredBreak > start ? preferredBreak : limitedEnd
+            chunks.append(String(text[start..<chunkEnd]))
+            start = chunkEnd
+            while start < text.endIndex, text[start].isWhitespace {
+                chunks[chunks.count - 1].append(text[start])
+                start = text.index(after: start)
+            }
+        }
+
+        return chunks
     }
 }
 
@@ -125,6 +175,7 @@ struct TranscriptSurface: View {
         #if os(iOS)
         UIKitTranscriptSurface(
             rows: rows,
+            isLoading: isLoading,
             earlierMessageCount: earlierMessageCount,
             scrollIntent: scrollIntent,
             onReachTop: onReachTop,

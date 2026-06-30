@@ -11,7 +11,7 @@ The remote machine only needs a Goose ACP server. It does not need Goose2 or Cat
 ## Core Behavior
 
 - The app lists existing Goose sessions from the configured ACP target.
-- The app opens existing sessions immediately from `session/list` metadata, then shows a stable loading shell while transcript history attaches.
+- The app opens existing sessions immediately from `session/list` metadata, then shows stable loading decoration while transcript history attaches.
 - Session creation is out of scope.
 - The app receives live ACP session updates while connected.
 - The app sends user prompts to the active session.
@@ -69,7 +69,7 @@ Session list:
 Chat session:
 
 - Show a top bar with back navigation, session title, and connection/activity status.
-- First paint must not wait for full `session/load` replay. The chat shell shows title, working directory, latest snippet, relative activity time, and message count from `session/list` while history attaches, and loading decoration must not change transcript viewport layout.
+- First paint must not wait for full `session/load` replay. The navigation title and loading decoration appear from `session/list` metadata while history attaches, and the transcript viewport stays blank unless optimistic local rows are present. Loading decoration must not change transcript viewport layout.
 - If `_goose/unstable/session/export` succeeds quickly, keep a bounded provisional tail snapshot of recent user-visible text messages available while full replay completes. Do not let provisional snapshot rows churn the opening layout; reveal them as the visible fallback if replay finishes without visible messages. Keep older exported messages available for automatic reveal when the exported tail is visible and the user scrolls to the top; do not require a manual "show earlier" button.
 - Treat exported messages as provisional. `session/load` remains the source of truth for the initial transcript; when replay finishes with messages, replace/reconcile the provisional snapshot with replayed transcript state without duplicating messages or jumping away from the latest conversation.
 - If `session/load` returns without replaying any visible messages, keep a visible exported tail snapshot as a non-authoritative fallback instead of replacing it with an empty transcript.
