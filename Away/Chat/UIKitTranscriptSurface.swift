@@ -5,6 +5,7 @@ import UIKit
 struct UIKitTranscriptSurface: UIViewRepresentable {
     let rows: [TranscriptSurfaceRow]
     let isLoading: Bool
+    let optimisticUserMessageIDs: Set<String>
     let earlierMessageCount: Int
     let scrollIntent: TranscriptScrollIntent?
     let onReachTop: () -> Void
@@ -38,6 +39,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             tableView: tableView,
             rows: rows,
             isLoading: isLoading,
+            optimisticUserMessageIDs: optimisticUserMessageIDs,
             earlierMessageCount: earlierMessageCount,
             scrollIntent: scrollIntent
         )
@@ -58,6 +60,9 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         private var hiddenBottomSettleGeneration = 0
         private var wasLoading = false
         private var measuredHeightsByRowID: [String: CGFloat] = [:]
+        private var pendingAnimatedBottomFollow = false
+        private var isFollowingStreamingBottom = false
+        private var pendingBottomEntranceRowIDs: Set<String> = []
 
         init(
             onReachTop: @escaping () -> Void,
@@ -71,6 +76,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             tableView: UITableView,
             rows newRows: [TranscriptSurfaceRow],
             isLoading: Bool = false,
+            optimisticUserMessageIDs: Set<String> = [],
             earlierMessageCount: Int,
             scrollIntent: TranscriptScrollIntent?
         ) {
@@ -79,8 +85,36 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             let newIDs = newRows.map(\.id)
             let wasNearBottom = isNearBottom(tableView)
             let wasLoadingBeforeUpdate = wasLoading
-            let anchor = wasNearBottom ? nil : visibleAnchor(in: tableView, rows: oldRows)
-            let shouldApplyScrollIntent = shouldApply(scrollIntent, wasNearBottom: wasNearBottom)
+            let rowChange = TranscriptAnimationPolicy.rowChange(oldRows: oldRows, newRows: newRows)
+            let canContinueStreamingBottomFollow = isFollowingStreamingBottom
+                && TranscriptAnimationPolicy.shouldAnimateStreamingBottomFollow(
+                    oldRows: oldRows,
+                    newRows: newRows,
+                    isLoading: isLoading,
+                    wasNearBottom: true
+                )
+            let shouldFollowBottom = wasNearBottom || canContinueStreamingBottomFollow
+            let anchor = shouldFollowBottom ? nil : visibleAnchor(in: tableView, rows: oldRows)
+            let shouldApplyScrollIntent = shouldApply(scrollIntent, wasNearBottom: shouldFollowBottom)
+            let shouldAnimateStreamingBottomFollow = TranscriptAnimationPolicy.shouldAnimateStreamingBottomFollow(
+                oldRows: oldRows,
+                newRows: newRows,
+                isLoading: isLoading,
+                wasNearBottom: shouldFollowBottom
+            )
+            let bottomEntranceRowIDs = TranscriptAnimationPolicy.bottomEntranceInsertedRowIDs(
+                oldRows: oldRows,
+                newRows: newRows,
+                optimisticUserMessageIDs: optimisticUserMessageIDs,
+                wasNearBottom: shouldFollowBottom
+            )
+            let animatedToolContentIDsByRowID = TranscriptAnimationPolicy.newToolContentIDsByRowID(
+                oldRows: oldRows,
+                newRows: newRows,
+                wasNearBottom: shouldFollowBottom
+            )
+            let shouldAnimateContentSizeBottomFollow = shouldAnimateStreamingBottomFollow
+                || !animatedToolContentIDsByRowID.isEmpty
             let shouldHideForInitialSettle = shouldHideForInitialBottomSettle(
                 oldRows: oldRows,
                 newRows: newRows,
@@ -94,21 +128,69 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             if shouldHideForInitialSettle {
                 beginHiddenBottomSettle(in: tableView)
             }
-
-            dataSource.rows = newRows
+            pendingAnimatedBottomFollow = shouldAnimateContentSizeBottomFollow && !shouldHideForInitialSettle
+            if shouldAnimateStreamingBottomFollow {
+                isFollowingStreamingBottom = true
+            } else if !canContinueStreamingBottomFollow {
+                isFollowingStreamingBottom = false
+            }
+            dataSource.prepareAnimatedContent(animatedToolContentIDsByRowID)
 
             let didChangeRenderedRows: Bool
-            if oldIDs != newIDs {
+            switch rowChange {
+            case .unchanged:
+                dataSource.rows = newRows
+                didChangeRenderedRows = reloadChangedVisibleRows(
+                    oldRows: oldRows,
+                    newRows: newRows,
+                    in: tableView
+                )
+            case .tailAppend(let startIndex, let count)
+                where !oldRows.isEmpty:
+                dataSource.rows = newRows
+                didChangeRenderedRows = applyTailAppend(
+                    oldRows: oldRows,
+                    newRows: newRows,
+                    startIndex: startIndex,
+                    count: count,
+                    bottomEntranceRowIDs: bottomEntranceRowIDs,
+                    in: tableView
+                )
+                if !shouldFollowBottom, !shouldApplyScrollIntent, let anchor {
+                    restore(anchor, in: tableView)
+                }
+            case .tailReplacement(let startIndex, let deletedCount, let insertedCount)
+                where !oldRows.isEmpty:
+                dataSource.rows = newRows
+                didChangeRenderedRows = applyTailReplacement(
+                    oldRows: oldRows,
+                    newRows: newRows,
+                    startIndex: startIndex,
+                    deletedCount: deletedCount,
+                    insertedCount: insertedCount,
+                    bottomEntranceRowIDs: bottomEntranceRowIDs,
+                    in: tableView
+                )
+                if !shouldFollowBottom, !shouldApplyScrollIntent, let anchor {
+                    restore(anchor, in: tableView)
+                }
+            case .tailAppend, .tailReplacement, .nonTailChange:
+                dataSource.rows = newRows
+                if oldRows.isEmpty {
+                    pendingBottomEntranceRowIDs.formUnion(bottomEntranceRowIDs)
+                }
                 UIView.performWithoutAnimation {
                     tableView.reloadData()
                     tableView.layoutIfNeeded()
                 }
-                didChangeRenderedRows = true
-                if !wasNearBottom, !shouldApplyScrollIntent, let anchor {
+                if oldRows.isEmpty {
+                    schedulePendingBottomEntranceCleanup(rowIDs: bottomEntranceRowIDs)
+                    animateVisiblePendingBottomEntranceRows(in: tableView)
+                }
+                didChangeRenderedRows = oldIDs != newIDs || oldRows != newRows
+                if !shouldFollowBottom, !shouldApplyScrollIntent, let anchor {
                     restore(anchor, in: tableView)
                 }
-            } else {
-                didChangeRenderedRows = reloadChangedVisibleRows(oldRows: oldRows, newRows: newRows, in: tableView)
             }
 
             if shouldApplyScrollIntent, let scrollIntent {
@@ -121,8 +203,12 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             } else if !didInitialBottomScroll, !newRows.isEmpty {
                 didInitialBottomScroll = true
                 _ = scrollToBottom(in: tableView, animated: false)
-            } else if wasNearBottom, didChangeRenderedRows {
-                _ = scrollToBottom(in: tableView, animated: false)
+            } else if shouldFollowBottom, didChangeRenderedRows {
+                if shouldAnimateContentSizeBottomFollow {
+                    scheduleAnimatedBottomFollow(in: tableView)
+                } else {
+                    _ = scrollToBottom(in: tableView, animated: false)
+                }
             }
 
             reportNearBottomIfNeeded(tableView)
@@ -135,6 +221,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
                     previousContentHeight: tableView.contentSize.height
                 )
             }
+            schedulePreparedAnimatedContentCleanup()
         }
 
         func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
@@ -155,11 +242,20 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
 
         func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             guard indexPath.row < dataSource.rows.count, cell.bounds.height > 0 else { return }
-            measuredHeightsByRowID[dataSource.rows[indexPath.row].id] = cell.bounds.height
+            let rowID = dataSource.rows[indexPath.row].id
+            measuredHeightsByRowID[rowID] = cell.bounds.height
+            resetBottomEntranceAnimation(on: cell)
+            if pendingBottomEntranceRowIDs.remove(rowID) != nil {
+                animateCellFromBottom(cell)
+            }
         }
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             guard let tableView = scrollView as? UITableView else { return }
+            if (tableView.isDragging || tableView.isDecelerating), !isNearBottom(tableView) {
+                pendingAnimatedBottomFollow = false
+                isFollowingStreamingBottom = false
+            }
             reportNearBottomIfNeeded(tableView)
             triggerEarlierRevealIfNeeded(
                 earlierMessageCount: currentEarlierMessageCount,
@@ -168,6 +264,8 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            pendingAnimatedBottomFollow = false
+            isFollowingStreamingBottom = false
             isApplyingProgrammaticScroll = false
         }
 
@@ -192,15 +290,52 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
                 visibleHeight: tableView.bounds.height,
                 contentHeight: oldSize.height
             )
-            guard tableView.alpha == 0 || wasNearBottom else {
+            let shouldContinueBottomFollow = pendingAnimatedBottomFollow || isFollowingStreamingBottom
+            guard tableView.alpha == 0 || wasNearBottom || shouldContinueBottomFollow else {
                 reportNearBottomIfNeeded(tableView)
                 return
             }
 
-            UIView.performWithoutAnimation {
-                pinToBottom(in: tableView)
+            if tableView.alpha == 0 {
+                UIView.performWithoutAnimation {
+                    pinToBottom(in: tableView)
+                }
+            } else if shouldContinueBottomFollow {
+                scheduleAnimatedBottomFollow(in: tableView)
+            } else {
+                UIView.performWithoutAnimation {
+                    pinToBottom(in: tableView)
+                }
             }
             reportNearBottomIfNeeded(tableView)
+        }
+
+        private func scheduleAnimatedBottomFollow(in tableView: UITableView) {
+            DispatchQueue.main.async { [weak self, weak tableView] in
+                guard let self,
+                      let tableView
+                else {
+                    return
+                }
+                self.consumePendingAnimatedBottomFollow(in: tableView)
+            }
+        }
+
+        private func consumePendingAnimatedBottomFollow(in tableView: UITableView) {
+            guard pendingAnimatedBottomFollow || isFollowingStreamingBottom else { return }
+            pendingAnimatedBottomFollow = false
+            guard !tableView.isDragging, !tableView.isDecelerating else {
+                isFollowingStreamingBottom = false
+                reportNearBottomIfNeeded(tableView)
+                return
+            }
+            _ = animateToBottom(in: tableView)
+        }
+
+        private func schedulePreparedAnimatedContentCleanup() {
+            DispatchQueue.main.async { [weak self] in
+                self?.dataSource.clearPreparedAnimatedContent()
+            }
         }
 
         private func shouldApply(_ scrollIntent: TranscriptScrollIntent?, wasNearBottom: Bool) -> Bool {
@@ -231,13 +366,52 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         private func pinToBottom(in tableView: UITableView) -> Bool {
             guard !dataSource.rows.isEmpty else { return false }
             tableView.layoutIfNeeded()
+            tableView.setContentOffset(bottomContentOffset(in: tableView), animated: false)
+            return true
+        }
+
+        @discardableResult
+        private func animateToBottom(in tableView: UITableView) -> Bool {
+            guard !dataSource.rows.isEmpty else { return false }
+            tableView.layoutIfNeeded()
+            let targetOffset = bottomContentOffset(in: tableView)
+            guard abs(tableView.contentOffset.y - targetOffset.y) > 0.5 else {
+                return true
+            }
+
+            isApplyingProgrammaticScroll = true
+            programmaticScrollGeneration += 1
+            let scrollGeneration = programmaticScrollGeneration
+            UIView.animate(
+                withDuration: TranscriptAnimationTiming.duration(0.16),
+                delay: 0,
+                options: [.allowUserInteraction, .beginFromCurrentState, .curveEaseOut]
+            ) {
+                tableView.setContentOffset(targetOffset, animated: false)
+            } completion: { [weak self, weak tableView] _ in
+                guard let self,
+                      let tableView,
+                      self.programmaticScrollGeneration == scrollGeneration
+                else {
+                    return
+                }
+                self.isApplyingProgrammaticScroll = false
+                self.reportNearBottomIfNeeded(tableView)
+                self.triggerEarlierRevealIfNeeded(
+                    earlierMessageCount: self.currentEarlierMessageCount,
+                    tableView: tableView
+                )
+            }
+            return true
+        }
+
+        private func bottomContentOffset(in tableView: UITableView) -> CGPoint {
             let minimumOffsetY = -tableView.adjustedContentInset.top
             let maximumOffsetY = max(
                 minimumOffsetY,
                 tableView.contentSize.height - tableView.bounds.height + tableView.adjustedContentInset.bottom
             )
-            tableView.setContentOffset(CGPoint(x: 0, y: maximumOffsetY), animated: false)
-            return true
+            return CGPoint(x: 0, y: maximumOffsetY)
         }
 
         private func scrollToRow(
@@ -273,11 +447,11 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
                         return
                     }
                     self.isApplyingProgrammaticScroll = false
-                self.triggerEarlierRevealIfNeeded(
-                    earlierMessageCount: self.currentEarlierMessageCount,
-                    tableView: tableView
-                )
-            }
+                    self.triggerEarlierRevealIfNeeded(
+                        earlierMessageCount: self.currentEarlierMessageCount,
+                        tableView: tableView
+                    )
+                }
                 return true
             }
 
@@ -406,12 +580,11 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             newRows: [TranscriptSurfaceRow],
             in tableView: UITableView
         ) -> Bool {
-            let changedVisibleIndexPaths = tableView.indexPathsForVisibleRows?.filter { indexPath in
-                guard indexPath.row < oldRows.count, indexPath.row < newRows.count else {
-                    return false
-                }
-                return oldRows[indexPath.row] != newRows[indexPath.row]
-            } ?? []
+            let changedVisibleIndexPaths = changedVisibleRows(
+                oldRows: oldRows,
+                newRows: newRows,
+                in: tableView
+            )
 
             guard !changedVisibleIndexPaths.isEmpty else { return false }
             UIView.performWithoutAnimation {
@@ -419,6 +592,156 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
                 tableView.layoutIfNeeded()
             }
             return true
+        }
+
+        private func applyTailAppend(
+            oldRows: [TranscriptSurfaceRow],
+            newRows: [TranscriptSurfaceRow],
+            startIndex: Int,
+            count: Int,
+            bottomEntranceRowIDs: Set<String>,
+            in tableView: UITableView
+        ) -> Bool {
+            guard count > 0 else {
+                return reloadChangedVisibleRows(oldRows: oldRows, newRows: newRows, in: tableView)
+            }
+
+            let changedVisibleIndexPaths = changedVisibleRows(
+                oldRows: oldRows,
+                newRows: newRows,
+                in: tableView
+            )
+            let insertedIndexPaths = (startIndex..<(startIndex + count)).map {
+                IndexPath(row: $0, section: 0)
+            }
+            pendingBottomEntranceRowIDs.formUnion(bottomEntranceRowIDs)
+            let updates = {
+                if !changedVisibleIndexPaths.isEmpty {
+                    tableView.reloadRows(at: changedVisibleIndexPaths, with: .none)
+                }
+                tableView.insertRows(
+                    at: insertedIndexPaths,
+                    with: .none
+                )
+            }
+
+            UIView.performWithoutAnimation {
+                tableView.performBatchUpdates(updates)
+                tableView.layoutIfNeeded()
+            }
+            schedulePendingBottomEntranceCleanup(rowIDs: bottomEntranceRowIDs)
+            animateVisiblePendingBottomEntranceRows(in: tableView)
+            return true
+        }
+
+        private func applyTailReplacement(
+            oldRows: [TranscriptSurfaceRow],
+            newRows: [TranscriptSurfaceRow],
+            startIndex: Int,
+            deletedCount: Int,
+            insertedCount: Int,
+            bottomEntranceRowIDs: Set<String>,
+            in tableView: UITableView
+        ) -> Bool {
+            guard deletedCount > 0 || insertedCount > 0 else {
+                return reloadChangedVisibleRows(oldRows: oldRows, newRows: newRows, in: tableView)
+            }
+
+            let changedVisibleIndexPaths = changedVisibleRows(
+                oldRows: oldRows,
+                newRows: newRows,
+                in: tableView
+            )
+            .filter { $0.row < startIndex }
+            let deletedIndexPaths = (startIndex..<(startIndex + deletedCount)).map {
+                IndexPath(row: $0, section: 0)
+            }
+            let insertedIndexPaths = (startIndex..<(startIndex + insertedCount)).map {
+                IndexPath(row: $0, section: 0)
+            }
+            pendingBottomEntranceRowIDs.formUnion(bottomEntranceRowIDs)
+
+            let updates = {
+                if !changedVisibleIndexPaths.isEmpty {
+                    tableView.reloadRows(at: changedVisibleIndexPaths, with: .none)
+                }
+                if !deletedIndexPaths.isEmpty {
+                    tableView.deleteRows(at: deletedIndexPaths, with: .none)
+                }
+                if !insertedIndexPaths.isEmpty {
+                    tableView.insertRows(at: insertedIndexPaths, with: .none)
+                }
+            }
+
+            UIView.performWithoutAnimation {
+                tableView.performBatchUpdates(updates)
+                tableView.layoutIfNeeded()
+            }
+            schedulePendingBottomEntranceCleanup(rowIDs: bottomEntranceRowIDs)
+            animateVisiblePendingBottomEntranceRows(in: tableView)
+            return true
+        }
+
+        private func animateCellFromBottom(_ cell: UITableViewCell) {
+            cell.contentView.transform = CGAffineTransform(
+                translationX: 0,
+                y: TranscriptAnimationTiming.offset(28)
+            )
+            cell.contentView.alpha = 0
+            DispatchQueue.main.async { [weak cell] in
+                guard let cell else { return }
+                UIView.animate(
+                    withDuration: TranscriptAnimationTiming.duration(0.24),
+                    delay: 0,
+                    options: [.allowUserInteraction, .beginFromCurrentState, .curveEaseOut]
+                ) {
+                    cell.contentView.transform = .identity
+                    cell.contentView.alpha = 1
+                }
+            }
+        }
+
+        private func animateVisiblePendingBottomEntranceRows(in tableView: UITableView) {
+            for cell in tableView.visibleCells {
+                guard let indexPath = tableView.indexPath(for: cell),
+                      indexPath.row < dataSource.rows.count
+                else {
+                    continue
+                }
+
+                let rowID = dataSource.rows[indexPath.row].id
+                if pendingBottomEntranceRowIDs.remove(rowID) != nil {
+                    animateCellFromBottom(cell)
+                }
+            }
+        }
+
+        private func schedulePendingBottomEntranceCleanup(rowIDs: Set<String>) {
+            guard !rowIDs.isEmpty else { return }
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + TranscriptAnimationTiming.duration(1.0)
+            ) { [weak self] in
+                self?.pendingBottomEntranceRowIDs.subtract(rowIDs)
+            }
+        }
+
+        private func resetBottomEntranceAnimation(on cell: UITableViewCell) {
+            cell.contentView.layer.removeAllAnimations()
+            cell.contentView.transform = .identity
+            cell.contentView.alpha = 1
+        }
+
+        private func changedVisibleRows(
+            oldRows: [TranscriptSurfaceRow],
+            newRows: [TranscriptSurfaceRow],
+            in tableView: UITableView
+        ) -> [IndexPath] {
+            tableView.indexPathsForVisibleRows?.filter { indexPath in
+                guard indexPath.row < oldRows.count, indexPath.row < newRows.count else {
+                    return false
+                }
+                return oldRows[indexPath.row] != newRows[indexPath.row]
+            } ?? []
         }
 
         private struct VisibleAnchor {
@@ -517,6 +840,13 @@ private extension TranscriptSurfaceRow {
         }
         return false
     }
+
+    var isAssistantProgress: Bool {
+        if case .assistantProgress = self {
+            return true
+        }
+        return false
+    }
 }
 
 enum TranscriptRowHeightEstimator {
@@ -543,6 +873,8 @@ enum TranscriptRowHeightEstimator {
             return estimatedSessionShellHeight(session)
         case .message(let message):
             return estimatedMessageHeight(message, tableWidth: tableWidth)
+        case .assistantProgress:
+            return messageRowVerticalPadding + assistantBubbleVerticalPadding + captionLineHeight + 16
         }
     }
 
@@ -755,6 +1087,7 @@ final class TranscriptTableViewDataSource: NSObject, UITableViewDataSource {
 
     var rows: [TranscriptSurfaceRow] = []
     private(set) var createdCellCount = 0
+    private var animatedContentIDsByRowID: [String: Set<String>] = [:]
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         rows.count
@@ -767,11 +1100,24 @@ final class TranscriptTableViewDataSource: NSObject, UITableViewDataSource {
         return cell
     }
 
+    func prepareAnimatedContent(_ contentIDsByRowID: [String: Set<String>]) {
+        animatedContentIDsByRowID = contentIDsByRowID
+    }
+
+    func clearPreparedAnimatedContent() {
+        animatedContentIDsByRowID.removeAll()
+    }
+
+    private func consumeAnimatedContentIDs(for rowID: String) -> Set<String> {
+        animatedContentIDsByRowID.removeValue(forKey: rowID) ?? []
+    }
+
     private func configure(_ cell: UITableViewCell, row: TranscriptSurfaceRow) {
         cell.selectionStyle = .none
         cell.backgroundColor = .clear
+        let animatedContentIDs = consumeAnimatedContentIDs(for: row.id)
         cell.contentConfiguration = UIHostingConfiguration {
-            TranscriptSurfaceRowView(row: row)
+            TranscriptSurfaceRowView(row: row, animatedContentIDs: animatedContentIDs)
         }
         .margins(.all, 0)
     }

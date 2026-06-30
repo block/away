@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 enum TranscriptScrollAnchor: Equatable, Sendable {
@@ -21,6 +22,7 @@ struct TranscriptScrollIntent: Equatable, Sendable {
 enum TranscriptSurfaceRow: Identifiable, Equatable {
     case sessionShell(SessionSummary)
     case message(ChatMessage)
+    case assistantProgress(anchorMessageID: String)
 
     var id: String {
         switch self {
@@ -28,6 +30,8 @@ enum TranscriptSurfaceRow: Identifiable, Equatable {
             "session-shell:\(session.id)"
         case .message(let message):
             "message:\(message.id)"
+        case .assistantProgress(let anchorMessageID):
+            "assistant-progress:\(anchorMessageID)"
         }
     }
 }
@@ -39,7 +43,8 @@ enum TranscriptSurfaceRows {
         isLoading: Bool,
         hasAuthoritativeReplay: Bool,
         snapshotMessageIDs: Set<String>,
-        optimisticUserMessageIDs: Set<String>
+        optimisticUserMessageIDs: Set<String>,
+        showsAssistantProgress: Bool = false
     ) -> [TranscriptSurfaceRow] {
         let presentedMessages = TranscriptOpeningPresentationPolicy.presentedMessages(
             messages,
@@ -49,7 +54,14 @@ enum TranscriptSurfaceRows {
             optimisticUserMessageIDs: optimisticUserMessageIDs
         )
 
-        return presentedMessages.flatMap(rows)
+        var rows = presentedMessages.flatMap(rows)
+        if showsAssistantProgress,
+           let lastMessage = presentedMessages.last,
+           lastMessage.role == .user,
+           optimisticUserMessageIDs.contains(lastMessage.id) {
+            rows.append(.assistantProgress(anchorMessageID: lastMessage.id))
+        }
+        return rows
     }
 
     private static func rows(for message: ChatMessage) -> [TranscriptSurfaceRow] {
@@ -65,7 +77,7 @@ enum TranscriptSurfaceRows {
 
         return chunks.enumerated().map { index, chunk in
             var chunkedMessage = message
-            chunkedMessage.id = "\(message.id)::chunk:\(index)"
+            chunkedMessage.id = index == 0 ? message.id : "\(message.id)::chunk:\(index)"
             chunkedMessage.content = [.text(chunk)]
             chunkedMessage.isStreaming = message.isStreaming && index == chunks.count - 1
             return .message(chunkedMessage)
@@ -150,6 +162,178 @@ enum TranscriptBottomScrollPolicy {
     }
 }
 
+enum TranscriptAssistantProgressPolicy {
+    static func shouldShow(
+        messages: [ChatMessage],
+        optimisticUserMessageIDs: Set<String>,
+        isLoading: Bool,
+        queuedPromptCount: Int,
+        errorMessage: String?
+    ) -> Bool {
+        guard !isLoading,
+              queuedPromptCount == 0,
+              errorMessage == nil,
+              let message = messages.last,
+              message.role == .user,
+              optimisticUserMessageIDs.contains(message.id)
+        else {
+            return false
+        }
+
+        return true
+    }
+}
+
+enum TranscriptAnimationTiming {
+    static func duration(_ baseDuration: TimeInterval) -> TimeInterval {
+        baseDuration * scale
+    }
+
+    static func offset(_ baseOffset: CGFloat) -> CGFloat {
+        baseOffset * CGFloat(min(scale, 2))
+    }
+
+    private static let scale: TimeInterval = {
+        #if DEBUG
+        guard let rawValue = ProcessInfo.processInfo.environment["GOOSE_REMOTE_TRANSCRIPT_ANIMATION_SCALE"],
+              let value = TimeInterval(rawValue)
+        else {
+            return 1
+        }
+
+        return min(max(value, 1), 8)
+        #else
+        return 1
+        #endif
+    }()
+}
+
+enum TranscriptRowChange: Equatable {
+    case unchanged
+    case tailAppend(startIndex: Int, count: Int)
+    case tailReplacement(startIndex: Int, deletedCount: Int, insertedCount: Int)
+    case nonTailChange
+}
+
+enum TranscriptAnimationPolicy {
+    static func rowChange(
+        oldRows: [TranscriptSurfaceRow],
+        newRows: [TranscriptSurfaceRow]
+    ) -> TranscriptRowChange {
+        let oldIDs = oldRows.map(\.id)
+        let newIDs = newRows.map(\.id)
+        guard oldIDs != newIDs else { return .unchanged }
+        guard newIDs.count > oldIDs.count,
+              newIDs.starts(with: oldIDs)
+        else {
+            if let oldLast = oldRows.last,
+               oldLast.isAssistantProgress {
+                let oldPrefix = oldIDs.dropLast()
+                let sharedPrefixCount = oldPrefix.count
+                if newIDs.starts(with: oldPrefix), newIDs.count >= sharedPrefixCount {
+                    return .tailReplacement(
+                        startIndex: sharedPrefixCount,
+                        deletedCount: oldIDs.count - sharedPrefixCount,
+                        insertedCount: newIDs.count - sharedPrefixCount
+                    )
+                }
+            }
+            return .nonTailChange
+        }
+
+        return .tailAppend(startIndex: oldIDs.count, count: newIDs.count - oldIDs.count)
+    }
+
+    static func shouldAnimateStreamingBottomFollow(
+        oldRows: [TranscriptSurfaceRow],
+        newRows: [TranscriptSurfaceRow],
+        isLoading: Bool,
+        wasNearBottom: Bool
+    ) -> Bool {
+        guard !isLoading,
+              wasNearBottom,
+              let lastMessage = newRows.last?.message,
+              lastMessage.role == .assistant,
+              lastMessage.isStreaming
+        else {
+            return false
+        }
+
+        switch rowChange(oldRows: oldRows, newRows: newRows) {
+        case .unchanged:
+            return oldRows != newRows
+        case .tailAppend, .tailReplacement:
+            return true
+        case .nonTailChange:
+            return false
+        }
+    }
+
+    static func bottomEntranceInsertedRowIDs(
+        oldRows: [TranscriptSurfaceRow],
+        newRows: [TranscriptSurfaceRow],
+        optimisticUserMessageIDs: Set<String>,
+        wasNearBottom: Bool
+    ) -> Set<String> {
+        guard wasNearBottom || oldRows.isEmpty,
+              let insertedRows = insertedRowsForBottomEntrance(oldRows: oldRows, newRows: newRows)
+        else {
+            return []
+        }
+
+        return Set(insertedRows.compactMap { row in
+            if row.optimisticUserMessageID(optimisticUserMessageIDs) != nil {
+                return row.id
+            }
+            if row.isAssistantProgress || row.containsToolContent {
+                guard !oldRows.isEmpty || !row.containsToolContent else {
+                    return nil
+                }
+                return row.id
+            }
+            return nil
+        })
+    }
+
+    static func insertedRowsForBottomEntrance(
+        oldRows: [TranscriptSurfaceRow],
+        newRows: [TranscriptSurfaceRow]
+    ) -> ArraySlice<TranscriptSurfaceRow>? {
+        switch rowChange(oldRows: oldRows, newRows: newRows) {
+        case .tailAppend(let startIndex, let count),
+             .tailReplacement(let startIndex, _, let count):
+            return newRows[startIndex..<(startIndex + count)]
+        case .unchanged, .nonTailChange:
+            return nil
+        }
+    }
+
+    static func newToolContentIDsByRowID(
+        oldRows: [TranscriptSurfaceRow],
+        newRows: [TranscriptSurfaceRow],
+        wasNearBottom: Bool
+    ) -> [String: Set<String>] {
+        guard wasNearBottom else { return [:] }
+        let oldRowsByID = Dictionary(uniqueKeysWithValues: oldRows.map { ($0.id, $0) })
+
+        return newRows.reduce(into: [:]) { result, row in
+            guard let oldRow = oldRowsByID[row.id],
+                  let oldMessage = oldRow.message,
+                  let newMessage = row.message
+            else {
+                return
+            }
+
+            let oldToolIDs = Set(oldMessage.content.compactMap(\.toolContentID))
+            let newToolIDs = Set(newMessage.content.compactMap(\.toolContentID))
+            let insertedToolIDs = newToolIDs.subtracting(oldToolIDs)
+            if !insertedToolIDs.isEmpty {
+                result[row.id] = insertedToolIDs
+            }
+        }
+    }
+}
+
 struct TranscriptSurface: View {
     let session: SessionSummary?
     let messages: [ChatMessage]
@@ -157,6 +341,7 @@ struct TranscriptSurface: View {
     let hasAuthoritativeReplay: Bool
     let snapshotMessageIDs: Set<String>
     let optimisticUserMessageIDs: Set<String>
+    let showsAssistantProgress: Bool
     let earlierMessageCount: Int
     let scrollIntent: TranscriptScrollIntent?
     let onReachTop: () -> Void
@@ -169,13 +354,15 @@ struct TranscriptSurface: View {
             isLoading: isLoading,
             hasAuthoritativeReplay: hasAuthoritativeReplay,
             snapshotMessageIDs: snapshotMessageIDs,
-            optimisticUserMessageIDs: optimisticUserMessageIDs
+            optimisticUserMessageIDs: optimisticUserMessageIDs,
+            showsAssistantProgress: showsAssistantProgress
         )
 
         #if os(iOS)
         UIKitTranscriptSurface(
             rows: rows,
             isLoading: isLoading,
+            optimisticUserMessageIDs: optimisticUserMessageIDs,
             earlierMessageCount: earlierMessageCount,
             scrollIntent: scrollIntent,
             onReachTop: onReachTop,
@@ -191,8 +378,54 @@ struct TranscriptSurface: View {
     }
 }
 
+private extension TranscriptSurfaceRow {
+    var message: ChatMessage? {
+        if case .message(let message) = self {
+            return message
+        }
+        return nil
+    }
+
+    var isAssistantProgress: Bool {
+        if case .assistantProgress = self {
+            return true
+        }
+        return false
+    }
+
+    var containsToolContent: Bool {
+        guard let message else { return false }
+        return message.content.contains {
+            if case .tool = $0 {
+                return true
+            }
+            return false
+        }
+    }
+
+    func optimisticUserMessageID(_ optimisticUserMessageIDs: Set<String>) -> String? {
+        guard let message,
+              message.role == .user,
+              optimisticUserMessageIDs.contains(message.id)
+        else {
+            return nil
+        }
+        return message.id
+    }
+}
+
+private extension ChatContent {
+    var toolContentID: String? {
+        if case .tool(let tool) = self {
+            return "tool:\(tool.id)"
+        }
+        return nil
+    }
+}
+
 struct TranscriptSurfaceRowView: View {
     let row: TranscriptSurfaceRow
+    var animatedContentIDs: Set<String> = []
 
     var body: some View {
         switch row {
@@ -201,9 +434,22 @@ struct TranscriptSurfaceRowView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 16)
         case .message(let message):
-            MessageBubbleView(message: message)
+            MessageBubbleView(message: message, animatedContentIDs: animatedContentIDs)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
+        case .assistantProgress:
+            AssistantProgressRowView()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+        }
+    }
+}
+
+private struct AssistantProgressRowView: View {
+    var body: some View {
+        HStack {
+            AssistantProgressView()
+            Spacer(minLength: 24)
         }
     }
 }
