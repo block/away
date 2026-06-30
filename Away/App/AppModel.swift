@@ -47,12 +47,15 @@ final class AppModel {
     @ObservationIgnored private var notificationFlushTask: Task<Void, Never>?
     @ObservationIgnored private var pendingNotifications: [ACPNotification] = []
     @ObservationIgnored private var connectionTask: Task<Void, Never>?
+    @ObservationIgnored private var liveRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var openSessionTokens: [String: UUID] = [:]
     @ObservationIgnored private var queuedPromptsBySession: [String: [QueuedPrompt]] = [:]
     @ObservationIgnored private var drainingQueuedPromptSessionIDs: Set<String> = []
     @ObservationIgnored private var queuedPromptDrainRetrySessionIDs: Set<String> = []
     @ObservationIgnored private var queuedPromptAttachRetrySessionIDs: Set<String> = []
     @ObservationIgnored private var queuedPromptAttachRetryAttemptsBySession: [String: Int] = [:]
+    @ObservationIgnored private var silentReplaySessionIDs: Set<String> = []
+    @ObservationIgnored private var outboundPromptSessionIDs: Set<String> = []
     @ObservationIgnored private var shortBackgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @ObservationIgnored private var lastNotifiedMessageIDs: Set<String> = []
     @ObservationIgnored private let connectionConfig: RemoteConnectionConfig
@@ -60,6 +63,7 @@ final class AppModel {
     @ObservationIgnored private let backgroundKeepalive = DemoBackgroundKeepaliveService()
     @ObservationIgnored private let exportTailMessageLimit = 16
     @ObservationIgnored private let loadDelay = Duration.milliseconds(450)
+    @ObservationIgnored private let liveRefreshInterval = Duration.seconds(2)
     @ObservationIgnored private let maxQueuedPromptAttachRetryAttempts = 3
 
     init(connectionConfig: RemoteConnectionConfig = .demo) {
@@ -84,6 +88,7 @@ final class AppModel {
     func stop() async {
         backgroundKeepalive.stop()
         endShortBackgroundTask()
+        cancelLiveRefreshLoop()
         connectionTask?.cancel()
         connectionTask = nil
         await closeCurrentClient()
@@ -107,8 +112,10 @@ final class AppModel {
                 if connectionState == .connected, let activeSessionID {
                     await openSession(activeSessionID)
                 }
+                startLiveRefreshLoopIfNeeded()
             }
         case .background:
+            cancelLiveRefreshLoop()
             beginShortBackgroundTask()
         default:
             break
@@ -142,6 +149,7 @@ final class AppModel {
             try await client.connect()
             connectionState = .connected
             await refreshSessions()
+            startLiveRefreshLoopIfNeeded()
         } catch {
             connectionState = .failed(error.localizedDescription)
             errorMessage = error.localizedDescription
@@ -157,13 +165,132 @@ final class AppModel {
 
         do {
             let listed = try await client.listSessions()
-            sessions = listed.sorted(by: SessionSummary.isMoreRecent)
+            publish(listedSessions: listed)
             errorMessage = nil
             connectionState = .connected
         } catch {
             connectionState = .failed(error.localizedDescription)
             errorMessage = error.localizedDescription
             await closeCurrentClient()
+        }
+    }
+
+    private func refreshSessionsForLiveRefresh() async -> Bool {
+        guard let client else { return false }
+
+        do {
+            let listed = try await client.listSessions()
+            publish(listedSessions: listed)
+            errorMessage = nil
+            connectionState = .connected
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    private func publish(listedSessions: [SessionSummary]) {
+        let currentSessionsByID = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
+        let merged = listedSessions.map { listed in
+            var session = listed
+            let runtime = runtimeBySession[session.id]
+            let hasLocalActivity = runtime?.activeRunID != nil
+                || runtime?.streamingMessageID != nil
+                || outboundPromptSessionIDs.contains(session.id)
+            if hasLocalActivity, let current = currentSessionsByID[session.id] {
+                session.subtitle = current.subtitle ?? session.subtitle
+                session.updatedAt = later(current.updatedAt, session.updatedAt)
+                session.lastMessageAt = later(current.lastMessageAt, session.lastMessageAt)
+            }
+            if runtime?.activeRunID != nil {
+                session.isWorking = true
+            }
+            return session
+        }
+        sessions = merged.sorted(by: SessionSummary.isMoreRecent)
+    }
+
+    private func later(_ lhs: Date?, _ rhs: Date?) -> Date? {
+        switch (lhs, rhs) {
+        case (.some(let left), .some(let right)):
+            return max(left, right)
+        case (.some(let left), .none):
+            return left
+        case (.none, .some(let right)):
+            return right
+        case (.none, .none):
+            return nil
+        }
+    }
+
+    private func startLiveRefreshLoopIfNeeded() {
+        guard liveRefreshTask == nil, scenePhase == .active else { return }
+
+        let interval = liveRefreshInterval
+        liveRefreshTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: interval)
+                guard let self, !Task.isCancelled else { return }
+                await self.performLiveRefreshTick()
+            }
+        }
+    }
+
+    private func cancelLiveRefreshLoop() {
+        liveRefreshTask?.cancel()
+        liveRefreshTask = nil
+    }
+
+    private func performLiveRefreshTick() async {
+        guard scenePhase == .active,
+              connectionState == .connected,
+              client != nil
+        else {
+            return
+        }
+
+        guard await refreshSessionsForLiveRefresh() else { return }
+        await refreshActiveSessionTranscriptIfNeeded()
+    }
+
+    private func refreshActiveSessionTranscriptIfNeeded() async {
+        guard let sessionID = activeSessionID,
+              let client,
+              scenePhase == .active,
+              connectionState == .connected,
+              !silentReplaySessionIDs.contains(sessionID),
+              !outboundPromptSessionIDs.contains(sessionID)
+        else {
+            return
+        }
+
+        let runtime = runtimeBySession[sessionID]
+        guard runtime?.isOpening != true,
+              runtime?.isReplaying != true,
+              runtime?.activeRunID == nil,
+              runtime?.streamingMessageID == nil,
+              runtime?.hasAuthoritativeReplay == true || messagesBySession[sessionID]?.isEmpty == false
+        else {
+            return
+        }
+
+        silentReplaySessionIDs.insert(sessionID)
+        do {
+            let cwd = sessions.first(where: { $0.id == sessionID })?.cwd
+            try await client.loadSession(sessionID: sessionID, cwd: cwd ?? connectionConfig.defaultCWD)
+            silentReplaySessionIDs.remove(sessionID)
+            guard activeSessionID == sessionID else {
+                dropPendingNotifications(for: sessionID)
+                return
+            }
+            flushPendingNotifications(authoritativeReplaySessionID: sessionID)
+            runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = nil
+        } catch {
+            silentReplaySessionIDs.remove(sessionID)
+            dropPendingNotifications(for: sessionID)
+            guard activeSessionID == sessionID else { return }
+            runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = error.localizedDescription
         }
     }
 
@@ -438,6 +565,7 @@ final class AppModel {
     }
 
     private func closeCurrentClient() async {
+        cancelLiveRefreshLoop()
         notificationTask?.cancel()
         notificationTask = nil
         notificationFlushTask?.cancel()
@@ -446,6 +574,8 @@ final class AppModel {
         openSessionTokens.removeAll()
         queuedPromptAttachRetrySessionIDs.removeAll()
         queuedPromptAttachRetryAttemptsBySession.removeAll()
+        silentReplaySessionIDs.removeAll()
+        outboundPromptSessionIDs.removeAll()
         if let client {
             await client.close()
         }
@@ -455,7 +585,9 @@ final class AppModel {
     private func enqueue(_ notification: ACPNotification) {
         pendingNotifications.append(notification)
         let runtime = runtimeBySession[notification.sessionID]
-        if runtime?.isOpening == true || runtime?.isReplaying == true {
+        if runtime?.isOpening == true
+            || runtime?.isReplaying == true
+            || silentReplaySessionIDs.contains(notification.sessionID) {
             return
         }
         scheduleNotificationFlush()
@@ -479,7 +611,7 @@ final class AppModel {
             runtimeBySession.compactMap { entry in
                 entry.value.isOpening || entry.value.isReplaying ? entry.key : nil
             }
-        )
+        ).union(silentReplaySessionIDs)
         var notifications: [ACPNotification] = []
         var deferredNotifications: [ACPNotification] = []
         for notification in pendingNotifications {
@@ -507,9 +639,13 @@ final class AppModel {
             if sessionID == authoritativeReplaySessionID {
                 let existingMessages = messagesBySession[sessionID] ?? []
                 let existingRuntime = runtimeBySession[sessionID] ?? SessionRuntime()
+                let optimisticMessages = existingMessages.filter { message in
+                    existingRuntime.optimisticUserMessageIDs.contains(message.id)
+                }
                 let replay = ChatTranscriptReducer.authoritativeReplay(
                     notifications: sessionNotifications,
-                    preservingLocalPrompts: queuedPromptsBySession[sessionID] ?? []
+                    preservingLocalPrompts: queuedPromptsBySession[sessionID] ?? [],
+                    preservingOptimisticMessages: optimisticMessages
                 )
                 queuedPromptsBySession[sessionID] = replay.queuedPrompts
                 if replay.messages.isEmpty, !existingMessages.isEmpty {
@@ -547,6 +683,10 @@ final class AppModel {
         }
 
         postBackgroundNotifications(assistantNotifications)
+    }
+
+    private func dropPendingNotifications(for sessionID: String) {
+        pendingNotifications.removeAll { $0.sessionID == sessionID }
     }
 
     private func postBackgroundNotifications(
@@ -593,6 +733,11 @@ final class AppModel {
                 await connect()
             }
             guard let client else { return false }
+
+            outboundPromptSessionIDs.insert(sessionID)
+            defer {
+                outboundPromptSessionIDs.remove(sessionID)
+            }
 
             let activeRunID = runtimeBySession[sessionID]?.activeRunID
             if let activeRunID {
@@ -759,14 +904,18 @@ final class AppModel {
         if let subtitle = result.subtitle {
             sessions[index].subtitle = subtitle
         }
-        sessions[index].updatedAt = Date()
+        let now = Date()
+        sessions[index].updatedAt = now
+        sessions[index].lastMessageAt = now
         sessions[index].isWorking = runtimeBySession[sessionID]?.activeRunID != nil
     }
 
     private func updateSessionActivity(sessionID: String, subtitle: String) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
         sessions[index].subtitle = subtitle
-        sessions[index].updatedAt = Date()
+        let now = Date()
+        sessions[index].updatedAt = now
+        sessions[index].lastMessageAt = now
     }
 
     private func title(for sessionID: String) -> String {
@@ -797,6 +946,22 @@ extension AppModel {
 
     func appendPendingNotificationsForTesting(_ notifications: [ACPNotification]) {
         pendingNotifications.append(contentsOf: notifications)
+    }
+
+    func enqueueNotificationForTesting(_ notification: ACPNotification) {
+        enqueue(notification)
+    }
+
+    func setSilentReplayForTesting(_ isReplaying: Bool, sessionID: String) {
+        if isReplaying {
+            silentReplaySessionIDs.insert(sessionID)
+        } else {
+            silentReplaySessionIDs.remove(sessionID)
+        }
+    }
+
+    func pendingNotificationCountForTesting(sessionID: String) -> Int {
+        pendingNotifications.filter { $0.sessionID == sessionID }.count
     }
 
     func flushPendingNotificationsForTesting(authoritativeReplaySessionID: String?) {

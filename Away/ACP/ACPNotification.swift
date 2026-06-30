@@ -26,6 +26,12 @@ struct ACPUpdate: Equatable, Sendable {
 
     var messageID: String? {
         raw["messageId"]?.stringValue
+            ?? gooseMeta?["messageId"]?.stringValue
+    }
+
+    var createdAt: Date? {
+        guard let created = gooseMeta?["created"]?.intValue else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(created))
     }
 
     var content: [String: JSONValue]? {
@@ -45,13 +51,16 @@ struct ACPUpdate: Equatable, Sendable {
     }
 
     var activeRunID: String?? {
-        guard let meta = raw["_meta"]?.objectValue,
-              let goose = meta["goose"]?.objectValue,
-              goose.keys.contains("activeRunId")
+        guard let gooseMeta,
+              gooseMeta.keys.contains("activeRunId")
         else {
             return nil
         }
-        return goose["activeRunId"]?.stringValue
+        return gooseMeta["activeRunId"]?.stringValue
+    }
+
+    private var gooseMeta: [String: JSONValue]? {
+        raw["_meta"]?.objectValue?["goose"]?.objectValue
     }
 }
 

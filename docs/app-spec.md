@@ -14,6 +14,7 @@ The remote machine only needs a Goose ACP server. The prototype may reference ex
 - The app opens existing sessions immediately from `session/list` metadata, then shows stable loading decoration while transcript history attaches.
 - Session creation is out of scope.
 - The app receives live ACP session updates while connected.
+- Because SSH stdio ACP updates are scoped to the client process, Away also performs foreground near-real-time refreshes of `session/list` and the already-open session's `session/load` replay so sessions and messages created by other Goose clients appear without manual refresh.
 - The app sends user prompts to the active session.
 - The app renders a scrollable chat transcript with user and assistant messages.
 - Sending and receiving messages should feel animated and responsive.
@@ -52,6 +53,8 @@ Relevant session updates include:
 - `session_info_update`
 - `usage_update`
 - `config_option_update`
+
+For Goose's current ACP server, stable message identity and timestamps may arrive in `_meta.goose.messageId` and `_meta.goose.created` rather than top-level update fields. Away should preserve those values when reconciling live updates and replay refreshes.
 
 Assistant-only replay chunks, such as hidden prompt context with `annotations.audience` that does not include `user`, must not be displayed in the transcript.
 
