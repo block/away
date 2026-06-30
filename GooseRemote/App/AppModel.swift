@@ -5,6 +5,12 @@ import UIKit
 @MainActor
 @Observable
 final class AppModel {
+    enum QueuedPromptAttachRetryDecision: Equatable {
+        case none
+        case schedule(attempt: Int)
+        case exhausted
+    }
+
     enum ConnectionState: Equatable {
         case disconnected
         case connecting
@@ -29,6 +35,7 @@ final class AppModel {
     var sessions: [SessionSummary] = []
     var activeSessionID: String?
     var messagesBySession: [String: [ChatMessage]] = [:]
+    var earlierMessagesBySession: [String: [ChatMessage]] = [:]
     var runtimeBySession: [String: SessionRuntime] = [:]
     var draftBySession: [String: String] = [:]
     var scenePhase: ScenePhase = .active
@@ -40,11 +47,20 @@ final class AppModel {
     @ObservationIgnored private var notificationFlushTask: Task<Void, Never>?
     @ObservationIgnored private var pendingNotifications: [ACPNotification] = []
     @ObservationIgnored private var connectionTask: Task<Void, Never>?
+    @ObservationIgnored private var openSessionTokens: [String: UUID] = [:]
+    @ObservationIgnored private var queuedPromptsBySession: [String: [QueuedPrompt]] = [:]
+    @ObservationIgnored private var drainingQueuedPromptSessionIDs: Set<String> = []
+    @ObservationIgnored private var queuedPromptDrainRetrySessionIDs: Set<String> = []
+    @ObservationIgnored private var queuedPromptAttachRetrySessionIDs: Set<String> = []
+    @ObservationIgnored private var queuedPromptAttachRetryAttemptsBySession: [String: Int] = [:]
     @ObservationIgnored private var shortBackgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @ObservationIgnored private var lastNotifiedMessageIDs: Set<String> = []
     @ObservationIgnored private let connectionConfig: RemoteConnectionConfig
     @ObservationIgnored private let notificationCoordinator = NotificationCoordinator.shared
     @ObservationIgnored private let backgroundKeepalive = DemoBackgroundKeepaliveService()
+    @ObservationIgnored private let exportTailMessageLimit = 16
+    @ObservationIgnored private let loadDelay = Duration.milliseconds(450)
+    @ObservationIgnored private let maxQueuedPromptAttachRetryAttempts = 3
 
     init(connectionConfig: RemoteConnectionConfig = .demo) {
         self.connectionConfig = connectionConfig
@@ -151,46 +167,183 @@ final class AppModel {
         }
     }
 
-    func openSession(_ sessionID: String) async {
-        activeSessionID = sessionID
-        messagesBySession[sessionID] = []
-        runtimeBySession[sessionID] = SessionRuntime(isReplaying: true)
+    func openSession(_ sessionID: String, preservingExistingMessages: Bool = false) async {
+        if !preservingExistingMessages,
+           runtimeBySession[sessionID]?.hasAuthoritativeReplay == true,
+           messagesBySession[sessionID]?.isEmpty == false {
+            activeSessionID = sessionID
+            var runtime = runtimeBySession[sessionID] ?? SessionRuntime()
+            runtime.isOpening = false
+            runtime.isReplaying = false
+            runtime.errorMessage = nil
+            runtimeBySession[sessionID] = runtime
+            return
+        }
+
+        var openToken = preparedOpenToken(
+            for: sessionID,
+            preservingExistingMessages: preservingExistingMessages
+        ) ?? prepareOpenSessionState(
+            sessionID,
+            preservingExistingMessages: preservingExistingMessages
+        )
 
         if client == nil {
             await connect()
+            openToken = UUID()
+            openSessionTokens[sessionID] = openToken
         }
 
         guard let client else {
+            runtimeBySession[sessionID, default: SessionRuntime()].isOpening = false
             runtimeBySession[sessionID, default: SessionRuntime()].isReplaying = false
             runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = errorMessage ?? "Connection is unavailable."
             return
         }
 
+        await Task.yield()
+
+        let exportTask = Task.detached(priority: .userInitiated) { [client, exportTailMessageLimit] () -> ExportedSessionSnapshot? in
+            do {
+                let json = try await client.exportSession(sessionID: sessionID)
+                return try ExportedSessionSnapshot.parse(json: json, tailLimit: exportTailMessageLimit)
+            } catch {
+                return nil
+            }
+        }
+
+        if let snapshot = await snapshot(from: exportTask, before: loadDelay),
+           isCurrentOpen(sessionID: sessionID, token: openToken),
+           (messagesBySession[sessionID] ?? []).isEmpty {
+            publish(snapshot: snapshot, for: sessionID)
+            await Task.yield()
+        }
+
+        guard isCurrentOpen(sessionID: sessionID, token: openToken) else {
+            clearOpeningStateIfNoLongerCurrent(sessionID: sessionID)
+            return
+        }
+        runtimeBySession[sessionID, default: SessionRuntime()].isOpening = false
+        runtimeBySession[sessionID, default: SessionRuntime()].isReplaying = true
+
+        if (messagesBySession[sessionID] ?? []).isEmpty {
+            publishLateSnapshot(from: exportTask, sessionID: sessionID, token: openToken)
+        }
+
         do {
             let cwd = sessions.first(where: { $0.id == sessionID })?.cwd
             try await client.loadSession(sessionID: sessionID, cwd: cwd ?? connectionConfig.defaultCWD)
-            flushPendingNotifications()
-            runtimeBySession[sessionID, default: SessionRuntime()].isReplaying = false
+            guard isCurrentOpen(sessionID: sessionID, token: openToken) else {
+                clearOpeningStateIfNoLongerCurrent(sessionID: sessionID)
+                return
+            }
+            flushPendingNotifications(authoritativeReplaySessionID: sessionID)
+            queuedPromptAttachRetryAttemptsBySession[sessionID] = nil
+            await sendQueuedPrompts(for: sessionID, openToken: openToken)
         } catch {
-            flushPendingNotifications()
+            guard isCurrentOpen(sessionID: sessionID, token: openToken) else {
+                clearOpeningStateIfNoLongerCurrent(sessionID: sessionID)
+                return
+            }
             runtimeBySession[sessionID, default: SessionRuntime()].isReplaying = false
-            runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = error.localizedDescription
+            runtimeBySession[sessionID, default: SessionRuntime()].isOpening = false
+            flushPendingNotifications()
+            let queuedPromptCount = queuedPromptsBySession[sessionID]?.count ?? 0
+            runtimeBySession[sessionID, default: SessionRuntime()].queuedPromptCount = queuedPromptCount
+            runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = queuedPromptCount > 0
+                ? "\(error.localizedDescription) Queued messages remain pending."
+                : error.localizedDescription
+            if queuedPromptCount > 0 {
+                scheduleQueuedPromptAttachRetry(for: sessionID)
+            }
         }
+    }
+
+    func prepareSessionForNavigation(_ sessionID: String) {
+        if runtimeBySession[sessionID]?.hasAuthoritativeReplay == true,
+           messagesBySession[sessionID]?.isEmpty == false {
+            activeSessionID = sessionID
+            var runtime = runtimeBySession[sessionID] ?? SessionRuntime()
+            runtime.isOpening = false
+            runtime.isReplaying = false
+            runtime.errorMessage = nil
+            runtimeBySession[sessionID] = runtime
+            return
+        }
+
+        guard preparedOpenToken(for: sessionID, preservingExistingMessages: false) == nil else {
+            activeSessionID = sessionID
+            return
+        }
+
+        prepareOpenSessionState(sessionID, preservingExistingMessages: false)
+    }
+
+    @discardableResult
+    func prepareOpenSessionState(
+        _ sessionID: String,
+        preservingExistingMessages: Bool
+    ) -> UUID {
+        let openToken = UUID()
+        openSessionTokens[sessionID] = openToken
+        activeSessionID = sessionID
+        if !preservingExistingMessages {
+            queuedPromptAttachRetryAttemptsBySession[sessionID] = nil
+            messagesBySession[sessionID] = []
+            earlierMessagesBySession[sessionID] = []
+            runtimeBySession[sessionID] = SessionRuntime(isOpening: true)
+        } else {
+            var runtime = runtimeBySession[sessionID] ?? SessionRuntime()
+            runtime.isOpening = true
+            runtime.isReplaying = false
+            runtime.errorMessage = nil
+            runtime.activeRunID = nil
+            runtime.streamingMessageID = nil
+            runtimeBySession[sessionID] = runtime
+        }
+        return openToken
+    }
+
+    private func preparedOpenToken(
+        for sessionID: String,
+        preservingExistingMessages: Bool
+    ) -> UUID? {
+        guard !preservingExistingMessages,
+              let openToken = openSessionTokens[sessionID],
+              runtimeBySession[sessionID]?.isOpening == true,
+              runtimeBySession[sessionID]?.isReplaying == false,
+              messagesBySession[sessionID]?.isEmpty == true,
+              earlierMessagesBySession[sessionID]?.isEmpty == true
+        else {
+            return nil
+        }
+
+        return openToken
     }
 
     func sendDraft(for sessionID: String) async {
         let text = (draftBySession[sessionID] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         draftBySession[sessionID] = ""
-        appendLocalUserMessage(sessionID: sessionID, text: text)
-        await send(text, in: sessionID)
+        let messageID = UUID().uuidString
+        appendLocalUserMessage(id: messageID, sessionID: sessionID, text: text)
+        await send(messageID: messageID, text: text, in: sessionID)
     }
 
     func sendNotificationReply(sessionID: String, text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        appendLocalUserMessage(sessionID: sessionID, text: trimmed)
-        await send(trimmed, in: sessionID)
+        let messageID = UUID().uuidString
+        appendLocalUserMessage(id: messageID, sessionID: sessionID, text: trimmed)
+        await send(messageID: messageID, text: trimmed, in: sessionID)
+    }
+
+    func revealEarlierMessages(for sessionID: String) {
+        guard let earlierMessages = earlierMessagesBySession[sessionID], !earlierMessages.isEmpty else {
+            return
+        }
+        earlierMessagesBySession[sessionID] = []
+        messagesBySession[sessionID] = earlierMessages + (messagesBySession[sessionID] ?? [])
     }
 
     func toggleDemoBackgroundKeepalive() {
@@ -200,6 +353,79 @@ final class AppModel {
         } else {
             backgroundKeepalive.stop()
         }
+    }
+
+    private func snapshot(
+        from task: Task<ExportedSessionSnapshot?, Never>,
+        before delay: Duration
+    ) async -> ExportedSessionSnapshot? {
+        await withTaskGroup(of: ExportedSessionSnapshot?.self) { group in
+            group.addTask {
+                await task.value
+            }
+            group.addTask {
+                try? await Task.sleep(for: delay)
+                return nil
+            }
+
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+    }
+
+    private func publishLateSnapshot(
+        from task: Task<ExportedSessionSnapshot?, Never>,
+        sessionID: String,
+        token: UUID
+    ) {
+        Task { @MainActor [weak self] in
+            guard let snapshot = await task.value,
+                  let self,
+                  self.isCurrentOpen(sessionID: sessionID, token: token),
+                  (self.messagesBySession[sessionID] ?? []).isEmpty
+            else {
+                return
+            }
+
+            self.publish(snapshot: snapshot, for: sessionID)
+        }
+    }
+
+    private func publish(snapshot: ExportedSessionSnapshot, for sessionID: String) {
+        guard !snapshot.visibleMessages.isEmpty else { return }
+
+        messagesBySession[sessionID] = snapshot.visibleMessages
+        earlierMessagesBySession[sessionID] = snapshot.earlierMessages
+        runtimeBySession[sessionID, default: SessionRuntime()].hasTailSnapshot = true
+        runtimeBySession[sessionID, default: SessionRuntime()].hasAuthoritativeReplay = false
+        runtimeBySession[sessionID, default: SessionRuntime()].snapshotMessageIDs = Set(
+            (snapshot.visibleMessages + snapshot.earlierMessages).map(\.id)
+        )
+
+        if let lastText = snapshot.visibleMessages.compactMap(\.plainText).last {
+            updateSessionActivity(sessionID: sessionID, subtitle: sessionPreview(from: lastText))
+        }
+    }
+
+    private func sessionPreview(from text: String) -> String {
+        let collapsed = text
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let limit = 240
+        guard collapsed.count > limit else { return collapsed }
+        return String(collapsed.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private func isCurrentOpen(sessionID: String, token: UUID) -> Bool {
+        openSessionTokens[sessionID] == token
+    }
+
+    private func clearOpeningStateIfNoLongerCurrent(sessionID: String) {
+        guard openSessionTokens[sessionID] == nil else { return }
+        runtimeBySession[sessionID, default: SessionRuntime()].isOpening = false
+        runtimeBySession[sessionID, default: SessionRuntime()].isReplaying = false
     }
 
     private func observeNotifications(from client: ACPClient) {
@@ -217,6 +443,9 @@ final class AppModel {
         notificationFlushTask?.cancel()
         notificationFlushTask = nil
         pendingNotifications.removeAll()
+        openSessionTokens.removeAll()
+        queuedPromptAttachRetrySessionIDs.removeAll()
+        queuedPromptAttachRetryAttemptsBySession.removeAll()
         if let client {
             await client.close()
         }
@@ -225,7 +454,8 @@ final class AppModel {
 
     private func enqueue(_ notification: ACPNotification) {
         pendingNotifications.append(notification)
-        if runtimeBySession[notification.sessionID]?.isReplaying == true {
+        let runtime = runtimeBySession[notification.sessionID]
+        if runtime?.isOpening == true || runtime?.isReplaying == true {
             return
         }
         scheduleNotificationFlush()
@@ -241,34 +471,78 @@ final class AppModel {
         }
     }
 
-    private func flushPendingNotifications() {
+    private func flushPendingNotifications(authoritativeReplaySessionID: String? = nil) {
         notificationFlushTask?.cancel()
         notificationFlushTask = nil
 
-        let notifications = pendingNotifications
-        pendingNotifications.removeAll(keepingCapacity: true)
-        guard !notifications.isEmpty else { return }
+        let replayingSessionIDs = Set(
+            runtimeBySession.compactMap { entry in
+                entry.value.isOpening || entry.value.isReplaying ? entry.key : nil
+            }
+        )
+        var notifications: [ACPNotification] = []
+        var deferredNotifications: [ACPNotification] = []
+        for notification in pendingNotifications {
+            if notification.sessionID == authoritativeReplaySessionID
+                || !replayingSessionIDs.contains(notification.sessionID) {
+                notifications.append(notification)
+            } else {
+                deferredNotifications.append(notification)
+            }
+        }
+        pendingNotifications = deferredNotifications
+        guard !notifications.isEmpty || authoritativeReplaySessionID != nil else { return }
 
         var assistantNotifications: [(sessionID: String, notification: AssistantNotification)] = []
         let grouped = Dictionary(grouping: notifications, by: \.sessionID)
+        var sessionIDs = Set(grouped.keys)
+        if let authoritativeReplaySessionID {
+            sessionIDs.insert(authoritativeReplaySessionID)
+        }
 
-        for (sessionID, sessionNotifications) in grouped {
-            var reducer = ChatTranscriptReducer(
-                messages: messagesBySession[sessionID] ?? [],
-                runtime: runtimeBySession[sessionID] ?? SessionRuntime()
-            )
+        for sessionID in sessionIDs {
+            let sessionNotifications = grouped[sessionID] ?? []
             var mergedResult = TranscriptApplyResult()
 
-            for notification in sessionNotifications {
-                let result = reducer.apply(notification)
-                mergedResult.merge(result)
-                if let assistantNotification = result.assistantNotification {
-                    assistantNotifications.append((sessionID, assistantNotification))
+            if sessionID == authoritativeReplaySessionID {
+                let existingMessages = messagesBySession[sessionID] ?? []
+                let existingRuntime = runtimeBySession[sessionID] ?? SessionRuntime()
+                let replay = ChatTranscriptReducer.authoritativeReplay(
+                    notifications: sessionNotifications,
+                    preservingLocalPrompts: queuedPromptsBySession[sessionID] ?? []
+                )
+                queuedPromptsBySession[sessionID] = replay.queuedPrompts
+                if replay.messages.isEmpty, !existingMessages.isEmpty {
+                    messagesBySession[sessionID] = existingMessages
+                    var runtime = replay.runtime
+                    runtime.hasTailSnapshot = existingRuntime.hasTailSnapshot
+                    runtime.hasAuthoritativeReplay = false
+                    runtime.snapshotMessageIDs = existingRuntime.snapshotMessageIDs
+                    runtime.queuedPromptCount = replay.queuedPrompts.count
+                    runtimeBySession[sessionID] = runtime
+                } else {
+                    messagesBySession[sessionID] = replay.messages
+                    earlierMessagesBySession[sessionID] = []
+                    runtimeBySession[sessionID] = replay.runtime
                 }
-            }
+                mergedResult = replay.result
+            } else {
+                var reducer = ChatTranscriptReducer(
+                    messages: messagesBySession[sessionID] ?? [],
+                    runtime: runtimeBySession[sessionID] ?? SessionRuntime()
+                )
 
-            messagesBySession[sessionID] = reducer.messages
-            runtimeBySession[sessionID] = reducer.runtime
+                for notification in sessionNotifications {
+                    let result = reducer.apply(notification)
+                    mergedResult.merge(result)
+                    if let assistantNotification = result.assistantNotification {
+                        assistantNotifications.append((sessionID, assistantNotification))
+                    }
+                }
+
+                messagesBySession[sessionID] = reducer.messages
+                runtimeBySession[sessionID] = reducer.runtime
+            }
             patchSessionMetadata(sessionID: sessionID, from: mergedResult)
         }
 
@@ -297,34 +571,184 @@ final class AppModel {
         }
     }
 
-    private func send(_ text: String, in sessionID: String) async {
+    @discardableResult
+    private func send(
+        messageID: String,
+        text: String,
+        in sessionID: String,
+        allowQueue: Bool = true
+    ) async -> Bool {
+        let runtime = runtimeBySession[sessionID]
+        if allowQueue,
+           (runtime?.queuedPromptCount ?? 0) > 0
+            || ((runtime?.isOpening == true || runtime?.isReplaying == true)
+                && runtime?.hasAuthoritativeReplay != true) {
+            queuePrompt(id: messageID, text: text, for: sessionID)
+            scheduleQueuedPromptWorkIfNeeded(for: sessionID)
+            return true
+        }
+
         do {
             if client == nil {
                 await connect()
             }
-            guard let client else { return }
+            guard let client else { return false }
 
             let activeRunID = runtimeBySession[sessionID]?.activeRunID
             if let activeRunID {
                 let newRunID = try await client.steer(sessionID: sessionID, expectedRunID: activeRunID, text: text)
                 runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = newRunID
             } else {
-                try await client.sendPrompt(sessionID: sessionID, text: text)
+                try await client.sendPrompt(sessionID: sessionID, messageID: messageID, text: text)
             }
+            return true
         } catch {
             runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = error.localizedDescription
+            return false
         }
     }
 
-    private func appendLocalUserMessage(sessionID: String, text: String) {
+    private func appendLocalUserMessage(id: String, sessionID: String, text: String) {
         var reducer = ChatTranscriptReducer(
             messages: messagesBySession[sessionID] ?? [],
             runtime: runtimeBySession[sessionID] ?? SessionRuntime()
         )
-        reducer.appendLocalUserMessage(id: UUID().uuidString, text: text)
+        reducer.appendLocalUserMessage(id: id, text: text)
         messagesBySession[sessionID] = reducer.messages
         runtimeBySession[sessionID] = reducer.runtime
         updateSessionActivity(sessionID: sessionID, subtitle: text)
+    }
+
+    private func queuePrompt(id: String, text: String, for sessionID: String) {
+        queuedPromptsBySession[sessionID, default: []].append(QueuedPrompt(id: id, text: text))
+        if runtimeBySession[sessionID]?.hasAuthoritativeReplay != true {
+            queuedPromptAttachRetryAttemptsBySession[sessionID] = nil
+        }
+        runtimeBySession[sessionID, default: SessionRuntime()].queuedPromptCount = queuedPromptsBySession[sessionID]?.count ?? 0
+    }
+
+    private func scheduleQueuedPromptWorkIfNeeded(for sessionID: String) {
+        let runtime = runtimeBySession[sessionID]
+        if runtime?.hasAuthoritativeReplay == true,
+           let token = openSessionTokens[sessionID] {
+            scheduleQueuedPromptDrain(for: sessionID, token: token)
+            return
+        }
+
+        guard runtime?.isOpening != true, runtime?.isReplaying != true else {
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            await self?.openSession(sessionID, preservingExistingMessages: true)
+        }
+    }
+
+    private func scheduleQueuedPromptAttachRetry(for sessionID: String) {
+        guard !queuedPromptAttachRetrySessionIDs.contains(sessionID) else { return }
+
+        guard case .schedule = consumeNextQueuedPromptAttachRetryDecision(for: sessionID) else {
+            return
+        }
+
+        queuedPromptAttachRetrySessionIDs.insert(sessionID)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard let self else { return }
+            self.queuedPromptAttachRetrySessionIDs.remove(sessionID)
+            guard self.queuedPromptsBySession[sessionID]?.isEmpty == false else {
+                self.queuedPromptAttachRetryAttemptsBySession[sessionID] = nil
+                return
+            }
+            guard self.activeSessionID == sessionID else {
+                self.queuedPromptAttachRetryAttemptsBySession[sessionID] = nil
+                return
+            }
+            guard self.runtimeBySession[sessionID]?.hasAuthoritativeReplay != true else {
+                self.queuedPromptAttachRetryAttemptsBySession[sessionID] = nil
+                return
+            }
+            await self.openSession(sessionID, preservingExistingMessages: true)
+        }
+    }
+
+    @discardableResult
+    func consumeNextQueuedPromptAttachRetryDecision(for sessionID: String) -> QueuedPromptAttachRetryDecision {
+        guard queuedPromptsBySession[sessionID]?.isEmpty == false else {
+            queuedPromptAttachRetryAttemptsBySession[sessionID] = nil
+            return .none
+        }
+
+        let attempt = (queuedPromptAttachRetryAttemptsBySession[sessionID] ?? 0) + 1
+        queuedPromptAttachRetryAttemptsBySession[sessionID] = attempt
+        guard attempt <= maxQueuedPromptAttachRetryAttempts else {
+            let currentErrorMessage = runtimeBySession[sessionID]?.errorMessage
+            let exhaustedMessage = "Queued messages remain pending after \(maxQueuedPromptAttachRetryAttempts) attach retries."
+            let message: String
+            if let currentErrorMessage, !currentErrorMessage.isEmpty {
+                message = "\(currentErrorMessage) \(exhaustedMessage)"
+            } else {
+                message = exhaustedMessage
+            }
+            runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = message
+            return .exhausted
+        }
+
+        return .schedule(attempt: attempt)
+    }
+
+    private func scheduleQueuedPromptDrain(
+        for sessionID: String,
+        token: UUID,
+        after delay: Duration? = nil
+    ) {
+        Task { @MainActor [weak self] in
+            if let delay {
+                try? await Task.sleep(for: delay)
+            }
+            guard let self, self.isCurrentOpen(sessionID: sessionID, token: token) else {
+                return
+            }
+            await self.sendQueuedPrompts(for: sessionID, openToken: token)
+        }
+    }
+
+    private func sendQueuedPrompts(for sessionID: String, openToken: UUID) async {
+        guard !drainingQueuedPromptSessionIDs.contains(sessionID) else {
+            queuedPromptDrainRetrySessionIDs.insert(sessionID)
+            return
+        }
+        drainingQueuedPromptSessionIDs.insert(sessionID)
+        var shouldRetryAfterDrain = false
+        defer {
+            drainingQueuedPromptSessionIDs.remove(sessionID)
+            let retryWasRequested = queuedPromptDrainRetrySessionIDs.remove(sessionID) != nil
+            if (retryWasRequested || shouldRetryAfterDrain),
+               queuedPromptsBySession[sessionID]?.isEmpty == false,
+               runtimeBySession[sessionID]?.hasAuthoritativeReplay == true,
+               let currentToken = openSessionTokens[sessionID] {
+                scheduleQueuedPromptDrain(for: sessionID, token: currentToken, after: .seconds(1))
+            }
+        }
+
+        while let prompt = queuedPromptsBySession[sessionID]?.first {
+            guard isCurrentOpen(sessionID: sessionID, token: openToken) else {
+                shouldRetryAfterDrain = true
+                return
+            }
+            let didSend = await send(messageID: prompt.id, text: prompt.text, in: sessionID, allowQueue: false)
+            guard didSend else {
+                shouldRetryAfterDrain = true
+                runtimeBySession[sessionID, default: SessionRuntime()].queuedPromptCount = queuedPromptsBySession[sessionID]?.count ?? 0
+                return
+            }
+            guard queuedPromptsBySession[sessionID]?.first?.id == prompt.id else {
+                runtimeBySession[sessionID, default: SessionRuntime()].queuedPromptCount = queuedPromptsBySession[sessionID]?.count ?? 0
+                continue
+            }
+            queuedPromptsBySession[sessionID]?.removeFirst()
+            runtimeBySession[sessionID, default: SessionRuntime()].queuedPromptCount = queuedPromptsBySession[sessionID]?.count ?? 0
+        }
     }
 
     private func patchSessionMetadata(sessionID: String, from result: TranscriptApplyResult) {
@@ -364,3 +788,32 @@ final class AppModel {
         shortBackgroundTaskID = .invalid
     }
 }
+
+#if DEBUG
+extension AppModel {
+    func publishSnapshotForTesting(_ snapshot: ExportedSessionSnapshot, for sessionID: String) {
+        publish(snapshot: snapshot, for: sessionID)
+    }
+
+    func appendPendingNotificationsForTesting(_ notifications: [ACPNotification]) {
+        pendingNotifications.append(contentsOf: notifications)
+    }
+
+    func flushPendingNotificationsForTesting(authoritativeReplaySessionID: String?) {
+        flushPendingNotifications(authoritativeReplaySessionID: authoritativeReplaySessionID)
+    }
+
+    func queuePromptForTesting(id: String, text: String, for sessionID: String) {
+        queuePrompt(id: id, text: text, for: sessionID)
+    }
+
+    func setQueuedPromptsForTesting(_ prompts: [QueuedPrompt], for sessionID: String) {
+        queuedPromptsBySession[sessionID] = prompts
+        runtimeBySession[sessionID, default: SessionRuntime()].queuedPromptCount = prompts.count
+    }
+
+    func queuedPromptAttachRetryAttemptsForTesting(sessionID: String) -> Int? {
+        queuedPromptAttachRetryAttemptsBySession[sessionID]
+    }
+}
+#endif

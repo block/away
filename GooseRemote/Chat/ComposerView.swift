@@ -3,14 +3,15 @@ import SwiftUI
 struct ComposerView: View {
     @Binding var text: String
     let isSteering: Bool
+    let statusLabel: String?
     let onSend: () -> Void
 
     var body: some View {
         VStack(spacing: 6) {
-            if isSteering {
+            if isSteering || statusLabel != nil {
                 HStack(spacing: 6) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                    Text("Steering active run")
+                    Image(systemName: statusLabel == nil ? "arrow.triangle.2.circlepath" : "clock")
+                    Text(statusLabel ?? "Steering active run")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

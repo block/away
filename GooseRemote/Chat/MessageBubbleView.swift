@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct MessageBubbleView: View {
@@ -13,22 +14,21 @@ struct MessageBubbleView: View {
                 ForEach(Array(message.content.enumerated()), id: \.offset) { _, content in
                     contentView(content)
                 }
-                if message.isStreaming {
-                    ProgressView()
-                        .controlSize(.mini)
+                if message.isStreaming, message.content.isEmpty {
+                    Text("Working...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, message.role == .user ? 14 : 0)
             .padding(.vertical, message.role == .user ? 10 : 2)
-            .background(message.role == .user ? Color.accentColor.opacity(0.16) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .modifier(UserBubbleChrome(isUser: message.role == .user))
             .frame(maxWidth: message.role == .user ? 310 : .infinity, alignment: message.role == .user ? .trailing : .leading)
 
             if message.role != .user {
                 Spacer(minLength: 24)
             }
         }
-        .animation(.snappy(duration: 0.18), value: message.isStreaming)
     }
 
     @ViewBuilder
@@ -46,6 +46,21 @@ struct MessageBubbleView: View {
             Text(text)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct UserBubbleChrome: ViewModifier {
+    let isUser: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isUser {
+            content
+                .background(Color.accentColor.opacity(0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        } else {
+            content
         }
     }
 }
@@ -79,13 +94,46 @@ private struct TranscriptTextView: View {
     }
 
     private var attributedDisplayText: AttributedString {
+        TranscriptAttributedTextCache.shared.attributedText(for: displayText)
+    }
+}
+
+private final class TranscriptAttributedTextCache: @unchecked Sendable {
+    static let shared = TranscriptAttributedTextCache()
+
+    private let cache = NSCache<NSString, CachedTranscriptAttributedText>()
+
+    private init() {
+        cache.countLimit = 300
+    }
+
+    func attributedText(for text: String) -> AttributedString {
+        let key = text as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached.value
+        }
+
+        let parsed = Self.parse(text)
+        cache.setObject(CachedTranscriptAttributedText(parsed), forKey: key)
+        return parsed
+    }
+
+    private static func parse(_ text: String) -> AttributedString {
         (
             try? AttributedString(
-                markdown: displayText,
+                markdown: text,
                 options: AttributedString.MarkdownParsingOptions(
                     interpretedSyntax: .inlineOnlyPreservingWhitespace
                 )
             )
-        ) ?? AttributedString(displayText)
+        ) ?? AttributedString(text)
+    }
+}
+
+private final class CachedTranscriptAttributedText {
+    let value: AttributedString
+
+    init(_ value: AttributedString) {
+        self.value = value
     }
 }

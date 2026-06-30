@@ -11,7 +11,7 @@ The remote machine only needs a Goose ACP server. It does not need Goose2 or Cat
 ## Core Behavior
 
 - The app lists existing Goose sessions from the configured ACP target.
-- The app opens existing sessions and loads transcript history.
+- The app opens existing sessions immediately from `session/list` metadata, then shows stable loading decoration while transcript history attaches.
 - Session creation is out of scope.
 - The app receives live ACP session updates while connected.
 - The app sends user prompts to the active session.
@@ -38,6 +38,7 @@ The app speaks JSON-RPC 2.0 ACP messages over the selected transport. The core A
 
 - `initialize`
 - `session/list`
+- `_goose/unstable/session/export` as an optional opening-latency optimization
 - `session/load`
 - `session/prompt`
 - `_goose/unstable/session/steer` when mid-run steering is enabled and reliable
@@ -68,10 +69,19 @@ Session list:
 Chat session:
 
 - Show a top bar with back navigation, session title, and connection/activity status.
+- First paint must not wait for full `session/load` replay. The navigation title and loading decoration appear from `session/list` metadata while history attaches, and the transcript viewport stays blank unless optimistic local rows are present. Loading decoration must not change transcript viewport layout.
+- If `_goose/unstable/session/export` succeeds quickly, keep a bounded provisional tail snapshot of recent user-visible text messages available while full replay completes. Do not let provisional snapshot rows churn the opening layout; reveal them as the visible fallback if replay finishes without visible messages. Keep older exported messages available for automatic reveal when the exported tail is visible and the user scrolls to the top; do not require a manual "show earlier" button.
+- Treat exported messages as provisional. `session/load` remains the source of truth for the initial transcript; when replay finishes with messages, replace/reconcile the provisional snapshot with replayed transcript state without duplicating messages or jumping away from the latest conversation.
+- If `session/load` returns without replaying any visible messages, keep a visible exported tail snapshot as a non-authoritative fallback instead of replacing it with an empty transcript.
+- Replay completion must settle historical messages into a non-streaming state. Do not keep replay-derived active-run or progress UI alive after loading unless a later live ACP update proves the run is active.
+- Re-entering a session with an already authoritative, non-empty transcript should reuse the loaded transcript instead of starting another full `session/load` replay.
+- Initial bottom settling should be a bounded, non-animated scroll intent handled by the transcript adapter after load completion or tail-snapshot publication. Do not keep scroll-geometry state updates in the SwiftUI transcript path that can drive layout feedback on large conversations.
+- If a user sends while an existing session is still attaching and `session/prompt` cannot be proven safe before load completion, keep the UI responsive with a local user bubble and queue the prompt until replay attachment completes.
 - Show transcript messages in a ChatGPT/Codex-like mobile layout.
 - Render Markdown in text messages as attributed text.
 - Keep assistant streaming under stable message identity so text grows in place.
 - Auto-scroll only when the user is already near the bottom.
+- The transcript surface should virtualize row views with a platform-backed scroll container. On iOS, use a `UITableView`/UIKit-backed adapter so the app may keep the complete fetched transcript in memory without placing every message row in the SwiftUI view tree. Keep the adapter boundary narrow enough that a native macOS `NSViewRepresentable` transcript surface can replace the iOS adapter later.
 - Keep the composer pinned above the keyboard.
 
 ## Notifications And Background

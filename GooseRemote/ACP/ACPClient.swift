@@ -75,10 +75,26 @@ actor ACPClient {
         )
     }
 
-    func sendPrompt(sessionID: String, text: String) async throws {
+    func exportSession(sessionID: String) async throws -> String {
+        let result = try await request(
+            method: "_goose/unstable/session/export",
+            params: [
+                "sessionId": .string(sessionID)
+            ],
+            timeout: 30
+        )
+
+        guard let data = result["data"]?.stringValue else {
+            throw ACPError.invalidResponse("_goose/unstable/session/export")
+        }
+
+        return data
+    }
+
+    func sendPrompt(sessionID: String, messageID: String, text: String) async throws {
         _ = try await request(
             method: "session/prompt",
-            params: promptParams(sessionID: sessionID, text: text),
+            params: promptParams(sessionID: sessionID, messageID: messageID, text: text),
             timeout: 300
         )
     }
@@ -164,10 +180,10 @@ actor ACPClient {
         }
     }
 
-    private func promptParams(sessionID: String, text: String) -> JSONValue {
+    private func promptParams(sessionID: String, messageID: String, text: String) -> JSONValue {
         [
             "sessionId": .string(sessionID),
-            "messageId": .string(UUID().uuidString),
+            "messageId": .string(messageID),
             "prompt": [
                 ACPContentBlock.text(text).jsonValue()
             ]
