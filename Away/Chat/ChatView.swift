@@ -11,6 +11,13 @@ struct ChatView: View {
         let runtime = model.runtimeBySession[sessionID] ?? SessionRuntime()
         let earlierMessageCount = model.earlierMessagesBySession[sessionID]?.count ?? 0
         let isLoading = runtime.isOpening || runtime.isReplaying
+        let showsAssistantProgress = TranscriptAssistantProgressPolicy.shouldShow(
+            messages: messages,
+            optimisticUserMessageIDs: runtime.optimisticUserMessageIDs,
+            isLoading: isLoading,
+            queuedPromptCount: runtime.queuedPromptCount,
+            errorMessage: runtime.errorMessage
+        )
 
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
@@ -21,6 +28,7 @@ struct ChatView: View {
                     hasAuthoritativeReplay: runtime.hasAuthoritativeReplay,
                     snapshotMessageIDs: runtime.snapshotMessageIDs,
                     optimisticUserMessageIDs: runtime.optimisticUserMessageIDs,
+                    showsAssistantProgress: showsAssistantProgress,
                     earlierMessageCount: earlierMessageCount
                 ) {
                     model.revealEarlierMessages(for: sessionID)
@@ -79,6 +87,7 @@ private struct ChatTranscriptView: View {
     let hasAuthoritativeReplay: Bool
     let snapshotMessageIDs: Set<String>
     let optimisticUserMessageIDs: Set<String>
+    let showsAssistantProgress: Bool
     let earlierMessageCount: Int
     let onRevealEarlierMessages: () -> Void
 
@@ -101,6 +110,7 @@ private struct ChatTranscriptView: View {
             hasAuthoritativeReplay: hasAuthoritativeReplay,
             snapshotMessageIDs: snapshotMessageIDs,
             optimisticUserMessageIDs: optimisticUserMessageIDs,
+            showsAssistantProgress: showsAssistantProgress,
             earlierMessageCount: canRevealEarlierMessages ? earlierMessageCount : 0,
             scrollIntent: scrollIntent,
             onReachTop: {

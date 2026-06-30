@@ -102,7 +102,8 @@ final class TranscriptSurfaceTests: XCTestCase {
         )
 
         XCTAssertGreaterThan(rows.count, 1)
-        XCTAssertEqual(rows.first?.id, "message:assistant-1::chunk:0")
+        XCTAssertEqual(rows.first?.id, "message:assistant-1")
+        XCTAssertEqual(rows.dropFirst().first?.id, "message:assistant-1::chunk:1")
         let chunkedText = rows.compactMap { row -> String? in
             guard case .message(let message) = row,
                   case .text(let text) = message.content.first
@@ -129,6 +130,30 @@ final class TranscriptSurfaceTests: XCTestCase {
         )
 
         XCTAssertEqual(rows, [.message(message)])
+    }
+
+    func testRowsAppendAssistantProgressAfterOptimisticUserWhenAwaitingResponse() {
+        let existing = ChatMessage(id: "assistant-1", role: .assistant, content: [.text("Ready")])
+        let optimistic = ChatMessage(id: "local-user", role: .user, content: [.text("Hello")])
+
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [existing, optimistic],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: ["local-user"],
+            showsAssistantProgress: true
+        )
+
+        XCTAssertEqual(
+            rows,
+            [
+                .message(existing),
+                .message(optimistic),
+                .assistantProgress(anchorMessageID: "local-user")
+            ]
+        )
     }
 
     func testBottomScrollPolicyRequestsOnlyWhenSettledAndNearBottom() {
@@ -163,6 +188,372 @@ final class TranscriptSurfaceTests: XCTestCase {
             TranscriptBottomScrollPolicy.shouldRequestAfterLastMessageChanged(
                 canSettleToBottom: true,
                 isUserNearBottom: false
+            )
+        )
+    }
+
+    func testAssistantProgressPolicyShowsOnlyForAwaitingOptimisticUserPrompt() {
+        let existing = ChatMessage(id: "assistant-1", role: .assistant, content: [.text("Ready")])
+        let optimistic = ChatMessage(id: "local-user", role: .user, content: [.text("Hello")])
+
+        XCTAssertTrue(
+            TranscriptAssistantProgressPolicy.shouldShow(
+                messages: [existing, optimistic],
+                optimisticUserMessageIDs: ["local-user"],
+                isLoading: false,
+                queuedPromptCount: 0,
+                errorMessage: nil
+            )
+        )
+        XCTAssertFalse(
+            TranscriptAssistantProgressPolicy.shouldShow(
+                messages: [existing, optimistic],
+                optimisticUserMessageIDs: ["local-user"],
+                isLoading: true,
+                queuedPromptCount: 0,
+                errorMessage: nil
+            )
+        )
+        XCTAssertFalse(
+            TranscriptAssistantProgressPolicy.shouldShow(
+                messages: [existing, optimistic],
+                optimisticUserMessageIDs: ["local-user"],
+                isLoading: false,
+                queuedPromptCount: 1,
+                errorMessage: nil
+            )
+        )
+        XCTAssertFalse(
+            TranscriptAssistantProgressPolicy.shouldShow(
+                messages: [],
+                optimisticUserMessageIDs: ["local-user"],
+                isLoading: false,
+                queuedPromptCount: 0,
+                errorMessage: nil
+            )
+        )
+        XCTAssertFalse(
+            TranscriptAssistantProgressPolicy.shouldShow(
+                messages: [existing, optimistic],
+                optimisticUserMessageIDs: ["local-user"],
+                isLoading: false,
+                queuedPromptCount: 0,
+                errorMessage: "Failed"
+            )
+        )
+        XCTAssertFalse(
+            TranscriptAssistantProgressPolicy.shouldShow(
+                messages: [existing, optimistic, existing],
+                optimisticUserMessageIDs: ["local-user"],
+                isLoading: false,
+                queuedPromptCount: 0,
+                errorMessage: nil
+            )
+        )
+    }
+
+    func testAnimationPolicyRecognizesOptimisticUserInsertionOnlyAtFollowedBottom() {
+        let oldRows = [
+            TranscriptSurfaceRow.message(ChatMessage(id: "assistant-1", role: .assistant, content: [.text("Ready")]))
+        ]
+        let optimisticUser = ChatMessage(id: "local-user", role: .user, content: [.text("Hello")])
+        let newRows = oldRows + [.message(optimisticUser)]
+
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.rowChange(oldRows: oldRows, newRows: newRows),
+            .tailAppend(startIndex: 1, count: 1)
+        )
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.bottomEntranceInsertedRowIDs(
+                oldRows: oldRows,
+                newRows: newRows,
+                optimisticUserMessageIDs: ["local-user"],
+                wasNearBottom: true
+            ),
+            ["message:local-user"]
+        )
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.bottomEntranceInsertedRowIDs(
+                oldRows: oldRows,
+                newRows: newRows,
+                optimisticUserMessageIDs: ["local-user"],
+                wasNearBottom: false
+            ),
+            []
+        )
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.bottomEntranceInsertedRowIDs(
+                oldRows: oldRows,
+                newRows: newRows,
+                optimisticUserMessageIDs: [],
+                wasNearBottom: true
+            ),
+            []
+        )
+    }
+
+    func testAnimationPolicyBottomEntranceIncludesOptimisticUserProgressAndToolRows() {
+        let oldRows = [
+            TranscriptSurfaceRow.message(ChatMessage(id: "assistant-1", role: .assistant, content: [.text("Ready")]))
+        ]
+        let optimisticUser = ChatMessage(id: "local-user", role: .user, content: [.text("Hello")])
+        let toolMessage = ChatMessage(
+            id: "assistant-tool",
+            role: .assistant,
+            content: [.tool(ToolActivity(id: "tool-1", name: "shell", status: "in_progress"))],
+            isStreaming: true
+        )
+
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.bottomEntranceInsertedRowIDs(
+                oldRows: oldRows,
+                newRows: oldRows + [
+                    .message(optimisticUser),
+                    .assistantProgress(anchorMessageID: "local-user")
+                ],
+                optimisticUserMessageIDs: ["local-user"],
+                wasNearBottom: true
+            ),
+            [
+                "message:local-user",
+                "assistant-progress:local-user"
+            ]
+        )
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.bottomEntranceInsertedRowIDs(
+                oldRows: oldRows,
+                newRows: oldRows + [.message(toolMessage)],
+                optimisticUserMessageIDs: [],
+                wasNearBottom: true
+            ),
+            ["message:assistant-tool"]
+        )
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.bottomEntranceInsertedRowIDs(
+                oldRows: oldRows,
+                newRows: oldRows + [.message(toolMessage)],
+                optimisticUserMessageIDs: [],
+                wasNearBottom: false
+            ),
+            []
+        )
+    }
+
+    func testAnimationPolicyDoesNotAnimateHistoricalToolRowsOnInitialOpen() {
+        let historicalToolRows = [
+            TranscriptSurfaceRow.message(
+                ChatMessage(
+                    id: "assistant-tool",
+                    role: .assistant,
+                    content: [.tool(ToolActivity(id: "tool-1", name: "shell", status: "completed"))]
+                )
+            )
+        ]
+
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.bottomEntranceInsertedRowIDs(
+                oldRows: [],
+                newRows: historicalToolRows,
+                optimisticUserMessageIDs: [],
+                wasNearBottom: true
+            ),
+            []
+        )
+    }
+
+    func testAnimationPolicyTreatsProgressReplacementAsBottomEntrance() {
+        let oldRows = [
+            TranscriptSurfaceRow.message(ChatMessage(id: "local-user", role: .user, content: [.text("Hello")])),
+            TranscriptSurfaceRow.assistantProgress(anchorMessageID: "local-user")
+        ]
+        let assistant = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            content: [.text("Starting")],
+            isStreaming: true
+        )
+        let newRows = [
+            TranscriptSurfaceRow.message(ChatMessage(id: "local-user", role: .user, content: [.text("Hello")])),
+            TranscriptSurfaceRow.message(assistant)
+        ]
+
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.rowChange(oldRows: oldRows, newRows: newRows),
+            .tailReplacement(startIndex: 1, deletedCount: 1, insertedCount: 1)
+        )
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.bottomEntranceInsertedRowIDs(
+                oldRows: oldRows,
+                newRows: newRows,
+                optimisticUserMessageIDs: ["local-user"],
+                wasNearBottom: true
+            ),
+            []
+        )
+        XCTAssertTrue(
+            TranscriptAnimationPolicy.shouldAnimateStreamingBottomFollow(
+                oldRows: oldRows,
+                newRows: newRows,
+                isLoading: false,
+                wasNearBottom: true
+            )
+        )
+    }
+
+    func testAnimationPolicyFindsNewInlineToolContentIDs() {
+        let oldRows = [
+            TranscriptSurfaceRow.message(
+                ChatMessage(id: "assistant-1", role: .assistant, content: [.text("I will run a tool")], isStreaming: true)
+            )
+        ]
+        let newRows = [
+            TranscriptSurfaceRow.message(
+                ChatMessage(
+                    id: "assistant-1",
+                    role: .assistant,
+                    content: [
+                        .text("I will run a tool"),
+                        .tool(ToolActivity(id: "tool-1", name: "shell", status: "in_progress"))
+                    ],
+                    isStreaming: true
+                )
+            )
+        ]
+
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.newToolContentIDsByRowID(
+                oldRows: oldRows,
+                newRows: newRows,
+                wasNearBottom: true
+            ),
+            ["message:assistant-1": ["tool:tool-1"]]
+        )
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.newToolContentIDsByRowID(
+                oldRows: oldRows,
+                newRows: newRows,
+                wasNearBottom: false
+            ),
+            [:]
+        )
+    }
+
+    func testAnimationPolicyAnimatesStreamingBottomFollowForGrowthButNotReplayOrScrolledAway() {
+        let oldRows = [
+            TranscriptSurfaceRow.message(
+                ChatMessage(id: "assistant-1", role: .assistant, content: [.text("A short line")], isStreaming: true)
+            )
+        ]
+        let grownRows = [
+            TranscriptSurfaceRow.message(
+                ChatMessage(
+                    id: "assistant-1",
+                    role: .assistant,
+                    content: [.text("A short line\nA second line that increases height")],
+                    isStreaming: true
+                )
+            )
+        ]
+
+        XCTAssertTrue(
+            TranscriptAnimationPolicy.shouldAnimateStreamingBottomFollow(
+                oldRows: oldRows,
+                newRows: grownRows,
+                isLoading: false,
+                wasNearBottom: true
+            )
+        )
+        XCTAssertFalse(
+            TranscriptAnimationPolicy.shouldAnimateStreamingBottomFollow(
+                oldRows: oldRows,
+                newRows: grownRows,
+                isLoading: false,
+                wasNearBottom: false
+            )
+        )
+        XCTAssertFalse(
+            TranscriptAnimationPolicy.shouldAnimateStreamingBottomFollow(
+                oldRows: oldRows,
+                newRows: grownRows,
+                isLoading: true,
+                wasNearBottom: true
+            )
+        )
+        XCTAssertFalse(
+            TranscriptAnimationPolicy.shouldAnimateStreamingBottomFollow(
+                oldRows: grownRows,
+                newRows: grownRows,
+                isLoading: false,
+                wasNearBottom: true
+            )
+        )
+        XCTAssertFalse(
+            TranscriptAnimationPolicy.shouldAnimateStreamingBottomFollow(
+                oldRows: grownRows,
+                newRows: oldRows + [
+                    .message(ChatMessage(id: "earlier", role: .assistant, content: [.text("Reordered")]))
+                ],
+                isLoading: false,
+                wasNearBottom: true
+            )
+        )
+
+        let nonTailStreamingRows = [
+            TranscriptSurfaceRow.message(
+                ChatMessage(id: "inserted-before-stream", role: .assistant, content: [.text("Inserted above")])
+            ),
+            grownRows[0]
+        ]
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.rowChange(oldRows: grownRows, newRows: nonTailStreamingRows),
+            .nonTailChange
+        )
+        XCTAssertFalse(
+            TranscriptAnimationPolicy.shouldAnimateStreamingBottomFollow(
+                oldRows: grownRows,
+                newRows: nonTailStreamingRows,
+                isLoading: false,
+                wasNearBottom: true
+            )
+        )
+    }
+
+    func testAnimationPolicyTreatsNewOversizedStreamingChunkAsTailAppend() {
+        let oldText = String(repeating: "streaming text ", count: 150)
+        let newText = oldText + String(repeating: "additional streamed text ", count: 80)
+        let oldRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [
+                ChatMessage(id: "assistant-1", role: .assistant, content: [.text(oldText)], isStreaming: true)
+            ],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+        let newRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [
+                ChatMessage(id: "assistant-1", role: .assistant, content: [.text(newText)], isStreaming: true)
+            ],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+
+        XCTAssertEqual(oldRows.first?.id, "message:assistant-1")
+        XCTAssertEqual(newRows.first?.id, "message:assistant-1")
+        XCTAssertEqual(
+            TranscriptAnimationPolicy.rowChange(oldRows: oldRows, newRows: newRows),
+            .tailAppend(startIndex: oldRows.count, count: newRows.count - oldRows.count)
+        )
+        XCTAssertTrue(
+            TranscriptAnimationPolicy.shouldAnimateStreamingBottomFollow(
+                oldRows: oldRows,
+                newRows: newRows,
+                isLoading: false,
+                wasNearBottom: true
             )
         )
     }
@@ -323,6 +714,136 @@ final class TranscriptSurfaceTests: XCTestCase {
         XCTAssertTrue(
             harness.tableView.indexPathsForVisibleRows?.contains(IndexPath(row: appendedRows.count - 1, section: 0)) == true
         )
+    }
+
+    @MainActor
+    func testCoordinatorRendersInitialOptimisticUserWithoutInitialInsertBatch() throws {
+        let harness = try makeCoordinatorHarness()
+        let optimisticUser = ChatMessage(id: "local-user", role: .user, content: [.text("Hello")])
+        let rows = [
+            TranscriptSurfaceRow.message(optimisticUser),
+            TranscriptSurfaceRow.assistantProgress(anchorMessageID: optimisticUser.id)
+        ]
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: rows,
+            optimisticUserMessageIDs: [optimisticUser.id],
+            earlierMessageCount: 0,
+            scrollIntent: nil
+        )
+        pumpLayout(for: harness.tableView)
+
+        XCTAssertEqual(harness.coordinator.dataSource.rows, rows)
+        XCTAssertEqual(harness.tableView.numberOfRows(inSection: 0), rows.count)
+        XCTAssertTrue(
+            harness.tableView.indexPathsForVisibleRows?.contains(IndexPath(row: rows.count - 1, section: 0)) == true
+        )
+    }
+
+    @MainActor
+    func testCoordinatorReplacesAssistantProgressTailWithStreamingAssistant() throws {
+        let harness = try makeCoordinatorHarness()
+        let optimisticUser = ChatMessage(id: "local-user", role: .user, content: [.text("Hello")])
+        let progressRows = [
+            TranscriptSurfaceRow.message(optimisticUser),
+            TranscriptSurfaceRow.assistantProgress(anchorMessageID: optimisticUser.id)
+        ]
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: progressRows,
+            optimisticUserMessageIDs: [optimisticUser.id],
+            earlierMessageCount: 0,
+            scrollIntent: TranscriptScrollIntent(target: .bottom, anchor: .bottom, animated: false, sequence: 1)
+        )
+        pumpLayout(for: harness.tableView)
+
+        let assistant = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            content: [.text("Starting the response")],
+            isStreaming: true
+        )
+        let replacementRows = [
+            TranscriptSurfaceRow.message(optimisticUser),
+            TranscriptSurfaceRow.message(assistant)
+        ]
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: replacementRows,
+            optimisticUserMessageIDs: [optimisticUser.id],
+            earlierMessageCount: 0,
+            scrollIntent: nil
+        )
+        RunLoop.main.run(until: Date().addingTimeInterval(0.35))
+        harness.tableView.layoutIfNeeded()
+
+        XCTAssertEqual(harness.coordinator.dataSource.rows, replacementRows)
+        XCTAssertEqual(harness.tableView.numberOfRows(inSection: 0), replacementRows.count)
+        XCTAssertTrue(
+            harness.tableView.indexPathsForVisibleRows?.contains(IndexPath(row: replacementRows.count - 1, section: 0)) == true
+        )
+    }
+
+    @MainActor
+    func testCoordinatorPreservesAnchorWhenProgressTailReplacedWhileScrolledAway() throws {
+        let harness = try makeCoordinatorHarness()
+        let earlierRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: makeMessages(count: 80),
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+        let optimisticUser = ChatMessage(id: "local-user", role: .user, content: [.text("Hello")])
+        let progressRows = earlierRows + [
+            TranscriptSurfaceRow.message(optimisticUser),
+            TranscriptSurfaceRow.assistantProgress(anchorMessageID: optimisticUser.id)
+        ]
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: progressRows,
+            optimisticUserMessageIDs: [optimisticUser.id],
+            earlierMessageCount: 0,
+            scrollIntent: TranscriptScrollIntent(target: .bottom, anchor: .bottom, animated: false, sequence: 1)
+        )
+        pumpLayout(for: harness.tableView)
+        harness.tableView.scrollToRow(at: IndexPath(row: 30, section: 0), at: .top, animated: false)
+        harness.tableView.layoutIfNeeded()
+
+        let anchoredIndexPath = try XCTUnwrap(harness.tableView.indexPathsForVisibleRows?.first)
+        let anchoredRowID = progressRows[anchoredIndexPath.row].id
+        let anchoredOffset = harness.tableView.contentOffset.y
+            - harness.tableView.rectForRow(at: anchoredIndexPath).minY
+
+        let assistant = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            content: [.text("Starting the response")],
+            isStreaming: true
+        )
+        let replacementRows = earlierRows + [
+            TranscriptSurfaceRow.message(optimisticUser),
+            TranscriptSurfaceRow.message(assistant)
+        ]
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: replacementRows,
+            optimisticUserMessageIDs: [optimisticUser.id],
+            earlierMessageCount: 0,
+            scrollIntent: nil
+        )
+        pumpLayout(for: harness.tableView)
+
+        let newAnchoredIndexPath = try XCTUnwrap(harness.tableView.indexPathsForVisibleRows?.first)
+        let newAnchoredOffset = harness.tableView.contentOffset.y
+            - harness.tableView.rectForRow(at: newAnchoredIndexPath).minY
+        XCTAssertEqual(replacementRows[newAnchoredIndexPath.row].id, anchoredRowID)
+        XCTAssertLessThan(abs(newAnchoredOffset - anchoredOffset), 2)
+        XCTAssertGreaterThan(distanceFromBottom(harness.tableView), 170)
     }
 
     @MainActor
