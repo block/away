@@ -1,36 +1,54 @@
-# away README
+# Away
 
-Congrats, project leads! You got a new project to grow!
+**Away** is a prototype iOS remote control for [goose](https://github.com/aaif-goose/goose).
 
-This stub is meant to help you form a strong community around your work. It's yours to adapt, and may 
-diverge from this initial structure. Just keep the files seeded in this repo, and the rest is yours to evolve! 
+Away connects to an existing goose ACP server and provides a mobile chat-style surface for listing
+sessions, opening transcripts, and sending prompts.
 
-## Introduction
+## Requirements
 
-Orient users to the project here. This is a good place to start with an assumption
-that the user knows very little - so start with the Big Picture and show how this
-project fits into it.
+- Xcode 26 or newer
+- iOS 26 simulator runtime
 
-Then maybe a dive into what this project does.
+Swift Package Manager resolves all dependencies from public Apple repositories.
 
-Diagrams and other visuals are helpful here. Perhaps code snippets showing usage.
+## Build And Run
 
-Project leads should complete, alongside this `README`:
+Open `Away.xcodeproj` in Xcode, select the `Away` scheme, choose an iOS simulator,
+and run.
 
-* [CODEOWNERS](./CODEOWNERS) - set project lead(s)
-* [CONTRIBUTING.md](./CONTRIBUTING.md) - Fill out how to: install prereqs, build, test, run, access CI, chat, discuss, file issues
-* [Bug-report.md](.github/ISSUE_TEMPLATE/bug-report.md) - Fill out `Assignees` add codeowners @names
-* [config.yml](.github/ISSUE_TEMPLATE/config.yml) - remove "(/add your discord channel..)" and replace the url with your Discord channel if applicable
+The prototype defaults to SSH stdio transport and runs:
 
-The other files in this template repo may be used as-is:
+```text
+goose acp
+```
 
-* [GOVERNANCE.md](./GOVERNANCE.md)
-* [LICENSE](./LICENSE)
+The app can be configured with launch environment variables while the connection UI is still
+prototype-only:
 
-## Project Resources
+```text
+AWAY_TRANSPORT=ssh-stdio
+AWAY_SSH_HOST=127.0.0.1
+AWAY_SSH_PORT=22
+AWAY_SSH_USERNAME=<user>
+AWAY_SSH_PASSWORD=<password>
+AWAY_SSH_COMMAND=goose acp
+```
 
-| Resource                                   | Description                                                                    |
-| ------------------------------------------ | ------------------------------------------------------------------------------ |
-| [CODEOWNERS](./CODEOWNERS)                 | Outlines the project lead(s)                                                   |
-| [GOVERNANCE.md](./GOVERNANCE.md)           | Project governance                                                             |
-| [LICENSE](./LICENSE)                       | Apache License, Version 2.0                                                    |
+For local protocol development, a direct WebSocket shortcut is also available:
+
+```text
+AWAY_TRANSPORT=direct-websocket
+AWAY_ACP_URL=ws://127.0.0.1:32845/acp?token=local-secret
+```
+
+## Test
+
+Run the `Away` test action in Xcode, or use:
+
+```sh
+xcodebuild test \
+  -project Away.xcodeproj \
+  -scheme Away \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+```
