@@ -10,6 +10,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
     let scrollIntent: TranscriptScrollIntent?
     let onReachTop: () -> Void
     let onNearBottomChanged: (Bool) -> Void
+    let onToggleToolGroup: (String) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -35,6 +36,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
     func updateUIView(_ tableView: UITableView, context: Context) {
         context.coordinator.onReachTop = onReachTop
         context.coordinator.onNearBottomChanged = onNearBottomChanged
+        context.coordinator.dataSource.onToggleToolGroup = onToggleToolGroup
         context.coordinator.update(
             tableView: tableView,
             rows: rows,
@@ -123,6 +125,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             dataSource.prepareAnimatedContent(animatedToolContentIDsByRowID)
 
             let didChangeRenderedRows: Bool
+            var didApplyAnimatedIdentityChange = false
             switch rowChange {
             case .unchanged:
                 dataSource.rows = newRows
@@ -161,21 +164,33 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
                     restore(anchor, in: tableView)
                 }
             case .tailAppend, .tailReplacement, .nonTailChange:
-                dataSource.rows = newRows
-                if oldRows.isEmpty {
-                    pendingBottomEntranceRowIDs.formUnion(bottomEntranceRowIDs)
-                }
-                UIView.performWithoutAnimation {
-                    tableView.reloadData()
-                    tableView.layoutIfNeeded()
-                }
-                if oldRows.isEmpty {
-                    schedulePendingBottomEntranceCleanup(rowIDs: bottomEntranceRowIDs)
-                    animateVisiblePendingBottomEntranceRows(in: tableView)
-                }
-                didChangeRenderedRows = oldIDs != newIDs || oldRows != newRows
-                if !wasNearBottom, !shouldApplyScrollIntent, let anchor {
-                    restore(anchor, in: tableView)
+                if TranscriptRowAnimationPolicy.canAnimateIdentityChange(oldRows: oldRows, newRows: newRows) {
+                    didChangeRenderedRows = applyAnimatedRowIdentityChange(
+                        oldRows: oldRows,
+                        newRows: newRows,
+                        in: tableView
+                    )
+                    didApplyAnimatedIdentityChange = true
+                    if !wasNearBottom, !shouldApplyScrollIntent, let anchor {
+                        restore(anchor, in: tableView)
+                    }
+                } else {
+                    dataSource.rows = newRows
+                    if oldRows.isEmpty {
+                        pendingBottomEntranceRowIDs.formUnion(bottomEntranceRowIDs)
+                    }
+                    UIView.performWithoutAnimation {
+                        tableView.reloadData()
+                        tableView.layoutIfNeeded()
+                    }
+                    if oldRows.isEmpty {
+                        schedulePendingBottomEntranceCleanup(rowIDs: bottomEntranceRowIDs)
+                        animateVisiblePendingBottomEntranceRows(in: tableView)
+                    }
+                    didChangeRenderedRows = oldIDs != newIDs || oldRows != newRows
+                    if !wasNearBottom, !shouldApplyScrollIntent, let anchor {
+                        restore(anchor, in: tableView)
+                    }
                 }
             }
 
@@ -189,7 +204,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             } else if !didInitialBottomScroll, !newRows.isEmpty {
                 didInitialBottomScroll = true
                 _ = scrollToBottom(in: tableView, animated: false)
-            } else if wasNearBottom, didChangeRenderedRows {
+            } else if wasNearBottom, didChangeRenderedRows, !didApplyAnimatedIdentityChange {
                 if shouldAnimateContentSizeBottomFollow {
                     scheduleAnimatedBottomFollow(in: tableView)
                 } else {
@@ -327,9 +342,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
         private func apply(_ scrollIntent: TranscriptScrollIntent, in tableView: UITableView) -> Bool {
             switch scrollIntent.target {
             case .message(let id):
-                guard let row = dataSource.rows.firstIndex(where: { row in
-                    row.id == "message:\(id)" || row.id.hasPrefix("message:\(id)::chunk:")
-                }) else { return false }
+                guard let row = dataSource.rows.firstIndex(where: { $0.matchesMessageTarget(id) }) else { return false }
                 return scrollToRow(row, anchor: scrollIntent.anchor, animated: scrollIntent.animated, in: tableView)
             case .bottom:
                 return scrollToBottom(in: tableView, animated: scrollIntent.animated)
@@ -491,7 +504,7 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             guard isLoadingReveal,
                   tableView.bounds.height > 0,
                   oldRows.isEmpty || oldRows.allSatisfy(\.isSessionShell),
-                  newRows.contains(where: \.isMessage)
+                  newRows.contains(where: \.isTranscriptContent)
             else {
                 return false
             }
@@ -566,8 +579,25 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             )
 
             guard !changedVisibleIndexPaths.isEmpty else { return false }
-            UIView.performWithoutAnimation {
-                tableView.reloadRows(at: changedVisibleIndexPaths, with: .none)
+            let animatedIndexPaths = changedVisibleIndexPaths.filter { indexPath in
+                TranscriptRowAnimationPolicy.reloadAnimation(
+                    oldRow: oldRows[indexPath.row],
+                    newRow: newRows[indexPath.row]
+                ) != .none
+            }
+            let nonAnimatedIndexPaths = changedVisibleIndexPaths.filter { indexPath in
+                !animatedIndexPaths.contains(indexPath)
+            }
+
+            if !nonAnimatedIndexPaths.isEmpty {
+                UIView.performWithoutAnimation {
+                    tableView.reloadRows(at: nonAnimatedIndexPaths, with: .none)
+                    tableView.layoutIfNeeded()
+                }
+            }
+
+            if !animatedIndexPaths.isEmpty {
+                tableView.reloadRows(at: animatedIndexPaths, with: .fade)
                 tableView.layoutIfNeeded()
             }
             return true
@@ -723,8 +753,87 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
             } ?? []
         }
 
+        private func applyAnimatedRowIdentityChange(
+            oldRows: [TranscriptSurfaceRow],
+            newRows: [TranscriptSurfaceRow],
+            in tableView: UITableView
+        ) -> Bool {
+            let oldIDs = oldRows.map(\.id)
+            let newIDs = newRows.map(\.id)
+            let newIDSet = Set(newIDs)
+            let oldIDSet = Set(oldIDs)
+            let deletionIndexPaths = oldRows.enumerated().compactMap { index, row -> IndexPath? in
+                newIDSet.contains(row.id) ? nil : IndexPath(row: index, section: 0)
+            }
+            let insertionIndexPaths = newRows.enumerated().compactMap { index, row -> IndexPath? in
+                oldIDSet.contains(row.id) ? nil : IndexPath(row: index, section: 0)
+            }
+            let reloadPlan = TranscriptRowReloadPlan.sameIndexSurvivors(
+                oldRows: oldRows,
+                newRows: newRows
+            )
+
+            dataSource.rows = newRows
+            tableView.performBatchUpdates {
+                if !deletionIndexPaths.isEmpty {
+                    tableView.deleteRows(at: deletionIndexPaths, with: .fade)
+                }
+                if !insertionIndexPaths.isEmpty {
+                    tableView.insertRows(at: insertionIndexPaths, with: .fade)
+                }
+                if !reloadPlan.nonAnimatedIndexPaths.isEmpty {
+                    tableView.reloadRows(at: reloadPlan.nonAnimatedIndexPaths, with: .none)
+                }
+                if !reloadPlan.animatedIndexPaths.isEmpty {
+                    tableView.reloadRows(at: reloadPlan.animatedIndexPaths, with: .fade)
+                }
+            } completion: { [weak self, weak tableView] _ in
+                guard let self,
+                      let tableView
+                else {
+                    return
+                }
+                self.reloadChangedVisibleRowsByID(
+                    oldRows: oldRows,
+                    newRows: newRows,
+                    excludingRowIDs: reloadPlan.rowIDs,
+                    in: tableView
+                )
+            }
+            tableView.layoutIfNeeded()
+            return true
+        }
+
+        private func reloadChangedVisibleRowsByID(
+            oldRows: [TranscriptSurfaceRow],
+            newRows: [TranscriptSurfaceRow],
+            excludingRowIDs: Set<String>,
+            in tableView: UITableView
+        ) {
+            let reloadPlan = TranscriptRowReloadPlan.visibleSurvivorsByID(
+                oldRows: oldRows,
+                newRows: newRows,
+                visibleIndexPaths: tableView.indexPathsForVisibleRows ?? [],
+                excludingRowIDs: excludingRowIDs
+            )
+
+            if !reloadPlan.nonAnimatedIndexPaths.isEmpty {
+                UIView.performWithoutAnimation {
+                    tableView.reloadRows(at: reloadPlan.nonAnimatedIndexPaths, with: .none)
+                    tableView.layoutIfNeeded()
+                }
+            }
+
+            if !reloadPlan.animatedIndexPaths.isEmpty {
+                tableView.reloadRows(at: reloadPlan.animatedIndexPaths, with: .fade)
+                tableView.layoutIfNeeded()
+            }
+        }
+
         private struct VisibleAnchor {
             var rowID: String
+            var messageID: String?
+            var rowOrdinalWithinMessage: Int?
             var offsetFromRowTop: CGFloat
         }
 
@@ -735,15 +844,28 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
                 return nil
             }
 
+            let row = rows[indexPath.row]
             let rect = tableView.rectForRow(at: indexPath)
             return VisibleAnchor(
-                rowID: rows[indexPath.row].id,
+                rowID: row.id,
+                messageID: row.anchorMessageID,
+                rowOrdinalWithinMessage: row.anchorMessageID.map { messageID in
+                    rows[..<indexPath.row].filter { $0.matchesMessageTarget(messageID) }.count
+                },
                 offsetFromRowTop: tableView.contentOffset.y - rect.minY
             )
         }
 
         private func restore(_ anchor: VisibleAnchor, in tableView: UITableView) {
-            guard let row = dataSource.rows.firstIndex(where: { $0.id == anchor.rowID }) else {
+            let anchoredRow = dataSource.rows.firstIndex { $0.id == anchor.rowID }
+                ?? anchor.messageID.flatMap { messageID in
+                    restoreFallbackRow(
+                        messageID: messageID,
+                        rowOrdinalWithinMessage: anchor.rowOrdinalWithinMessage
+                    )
+                }
+
+            guard let row = anchoredRow else {
                 return
             }
 
@@ -753,6 +875,23 @@ struct UIKitTranscriptSurface: UIViewRepresentable {
                 CGPoint(x: 0, y: rect.minY + anchor.offsetFromRowTop),
                 animated: false
             )
+        }
+
+        private func restoreFallbackRow(
+            messageID: String,
+            rowOrdinalWithinMessage: Int?
+        ) -> Int? {
+            let matchingRows = dataSource.rows.indices.filter { dataSource.rows[$0].matchesMessageTarget(messageID) }
+            guard !matchingRows.isEmpty else {
+                return nil
+            }
+            guard let rowOrdinalWithinMessage else {
+                return matchingRows.first
+            }
+            if rowOrdinalWithinMessage < matchingRows.count {
+                return matchingRows[rowOrdinalWithinMessage]
+            }
+            return matchingRows.last
         }
 
         private func isNearBottom(_ tableView: UITableView) -> Bool {
@@ -826,6 +965,179 @@ private extension TranscriptSurfaceRow {
         }
         return false
     }
+
+    var isTranscriptContent: Bool {
+        isMessage || isAssistantProgress || isToolPresentation
+    }
+
+    var isToolPresentation: Bool {
+        switch self {
+        case .toolGroup, .toolStep:
+            return true
+        case .sessionShell, .message, .assistantProgress:
+            return false
+        }
+    }
+
+    var anchorMessageID: String? {
+        switch self {
+        case .sessionShell:
+            return nil
+        case .message(let message):
+            return message.id.transcriptBaseMessageID
+        case .assistantProgress(let anchorMessageID):
+            return anchorMessageID
+        case .toolGroup(let group):
+            return group.id.transcriptBaseMessageID
+        case .toolStep(let step):
+            return (step.groupID ?? step.id).transcriptBaseMessageID
+        }
+    }
+}
+
+private extension String {
+    var transcriptBaseMessageID: String {
+        guard let separator = range(of: "::") else {
+            return self
+        }
+        return String(self[..<separator.lowerBound])
+    }
+}
+
+enum TranscriptRowAnimationPolicy {
+    private static let maximumAnimatedToolRowChanges = 32
+
+    static func canAnimateIdentityChange(
+        oldRows: [TranscriptSurfaceRow],
+        newRows: [TranscriptSurfaceRow]
+    ) -> Bool {
+        guard !oldRows.isEmpty, !newRows.isEmpty else {
+            return false
+        }
+
+        let oldIDs = oldRows.map(\.id)
+        let newIDs = newRows.map(\.id)
+        guard Set(oldIDs).count == oldIDs.count,
+              Set(newIDs).count == newIDs.count
+        else {
+            return false
+        }
+
+        let oldIDSet = Set(oldIDs)
+        let newIDSet = Set(newIDs)
+        let insertedRows = newRows.filter { !oldIDSet.contains($0.id) }
+        let deletedRows = oldRows.filter { !newIDSet.contains($0.id) }
+        let changedCount = insertedRows.count + deletedRows.count
+        guard changedCount > 0,
+              changedCount <= maximumAnimatedToolRowChanges
+        else {
+            return false
+        }
+
+        let changedRows = insertedRows + deletedRows
+        guard changedRows.allSatisfy(\.isToolPresentation) else {
+            return false
+        }
+
+        let oldSurvivors = oldRows.map(\.id).filter(newIDSet.contains)
+        let newSurvivors = newRows.map(\.id).filter(oldIDSet.contains)
+        return oldSurvivors == newSurvivors
+    }
+
+    static func reloadAnimation(
+        oldRow: TranscriptSurfaceRow,
+        newRow: TranscriptSurfaceRow
+    ) -> UITableView.RowAnimation {
+        guard oldRow != newRow else {
+            return .none
+        }
+        if oldRow.isToolPresentation || newRow.isToolPresentation {
+            return .fade
+        }
+        return .none
+    }
+}
+
+struct TranscriptRowReloadPlan: Equatable {
+    var animatedIndexPaths: [IndexPath]
+    var nonAnimatedIndexPaths: [IndexPath]
+    var rowIDs: Set<String>
+
+    static func sameIndexSurvivors(
+        oldRows: [TranscriptSurfaceRow],
+        newRows: [TranscriptSurfaceRow]
+    ) -> TranscriptRowReloadPlan {
+        let changedIndexPaths = oldRows.enumerated().compactMap { index, oldRow -> IndexPath? in
+            guard index < newRows.count,
+                  oldRow.id == newRows[index].id,
+                  oldRow != newRows[index]
+            else {
+                return nil
+            }
+            return IndexPath(row: index, section: 0)
+        }
+
+        return plan(
+            indexPaths: changedIndexPaths,
+            oldRowForNewIndexPath: { indexPath in oldRows[indexPath.row] },
+            newRows: newRows
+        )
+    }
+
+    static func visibleSurvivorsByID(
+        oldRows: [TranscriptSurfaceRow],
+        newRows: [TranscriptSurfaceRow],
+        visibleIndexPaths: [IndexPath],
+        excludingRowIDs: Set<String>
+    ) -> TranscriptRowReloadPlan {
+        let oldRowsByID = Dictionary(uniqueKeysWithValues: oldRows.map { ($0.id, $0) })
+        let changedIndexPaths = visibleIndexPaths.filter { indexPath in
+            guard indexPath.row < newRows.count,
+                  let oldRow = oldRowsByID[newRows[indexPath.row].id],
+                  !excludingRowIDs.contains(newRows[indexPath.row].id)
+            else {
+                return false
+            }
+            return oldRow != newRows[indexPath.row]
+        }
+
+        return plan(
+            indexPaths: changedIndexPaths,
+            oldRowForNewIndexPath: { indexPath in
+                oldRowsByID[newRows[indexPath.row].id]
+            },
+            newRows: newRows
+        )
+    }
+
+    private static func plan(
+        indexPaths: [IndexPath],
+        oldRowForNewIndexPath: (IndexPath) -> TranscriptSurfaceRow?,
+        newRows: [TranscriptSurfaceRow]
+    ) -> TranscriptRowReloadPlan {
+        let animatedIndexPaths = indexPaths.filter { indexPath in
+            guard indexPath.row < newRows.count,
+                  let oldRow = oldRowForNewIndexPath(indexPath)
+            else {
+                return false
+            }
+            return TranscriptRowAnimationPolicy.reloadAnimation(
+                oldRow: oldRow,
+                newRow: newRows[indexPath.row]
+            ) != .none
+        }
+        let nonAnimatedIndexPaths = indexPaths.filter { indexPath in
+            !animatedIndexPaths.contains(indexPath)
+        }
+        let rowIDs = Set(indexPaths.compactMap { indexPath in
+            indexPath.row < newRows.count ? newRows[indexPath.row].id : nil
+        })
+        return TranscriptRowReloadPlan(
+            animatedIndexPaths: animatedIndexPaths,
+            nonAnimatedIndexPaths: nonAnimatedIndexPaths,
+            rowIDs: rowIDs
+        )
+    }
 }
 
 enum TranscriptRowHeightEstimator {
@@ -854,6 +1166,10 @@ enum TranscriptRowHeightEstimator {
             return estimatedMessageHeight(message, tableWidth: tableWidth)
         case .assistantProgress:
             return messageRowVerticalPadding + assistantBubbleVerticalPadding + captionLineHeight + 16
+        case .toolGroup:
+            return 34
+        case .toolStep:
+            return 30
         }
     }
 
@@ -954,23 +1270,10 @@ enum TranscriptRowHeightEstimator {
     }
 
     private static func estimatedToolHeight(
-        _ tool: ToolActivity,
+        _: ToolActivity,
         availableWidth: CGFloat
     ) -> CGFloat {
-        var height: CGFloat = 20 + 20
-        if let result = tool.result, !result.isEmpty {
-            height += 6 + min(
-                estimatedWrappedTextHeight(
-                    result,
-                    availableWidth: availableWidth - 20,
-                    lineHeight: captionLineHeight,
-                    averageCharacterWidth: 6.2,
-                    maximumHeight: captionLineHeight * 4
-                ),
-                captionLineHeight * 4
-            )
-        }
-        return height
+        24
     }
 
     private static func textWidth(for role: ChatMessage.Role, tableWidth: CGFloat) -> CGFloat {
@@ -1065,6 +1368,7 @@ final class TranscriptTableViewDataSource: NSObject, UITableViewDataSource {
     static let cellIdentifier = "TranscriptCell"
 
     var rows: [TranscriptSurfaceRow] = []
+    var onToggleToolGroup: (String) -> Void = { _ in }
     private(set) var createdCellCount = 0
     private var animatedContentIDsByRowID: [String: Set<String>] = [:]
 
@@ -1096,7 +1400,11 @@ final class TranscriptTableViewDataSource: NSObject, UITableViewDataSource {
         cell.backgroundColor = .clear
         let animatedContentIDs = consumeAnimatedContentIDs(for: row.id)
         cell.contentConfiguration = UIHostingConfiguration {
-            TranscriptSurfaceRowView(row: row, animatedContentIDs: animatedContentIDs)
+            TranscriptSurfaceRowView(
+                row: row,
+                animatedContentIDs: animatedContentIDs,
+                onToggleToolGroup: onToggleToolGroup
+            )
         }
         .margins(.all, 0)
     }

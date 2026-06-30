@@ -44,6 +44,34 @@ struct ACPUpdate: Equatable, Sendable {
         raw["status"]?.stringValue
     }
 
+    var rawInput: [String: JSONValue]? {
+        raw["rawInput"]?.objectValue
+            ?? raw["input"]?.objectValue
+            ?? raw["arguments"]?.objectValue
+    }
+
+    var toolName: String? {
+        toolIdentity?.toolName
+    }
+
+    var extensionName: String? {
+        toolIdentity?.extensionName
+    }
+
+    var toolChainSummary: ToolActivityChainSummary? {
+        guard let meta = raw["_meta"]?.objectValue,
+              let goose = meta["goose"]?.objectValue,
+              let chain = goose["toolChainSummary"]?.objectValue,
+              let summary = chain["summary"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !summary.isEmpty,
+              let count = chain["count"]?.intValue,
+              count > 0
+        else {
+            return nil
+        }
+        return ToolActivityChainSummary(summary: summary, count: count)
+    }
+
     var activeRunID: String?? {
         guard let meta = raw["_meta"]?.objectValue,
               let goose = meta["goose"]?.objectValue,
@@ -52,6 +80,27 @@ struct ACPUpdate: Equatable, Sendable {
             return nil
         }
         return goose["activeRunId"]?.stringValue
+    }
+
+    private var toolIdentity: (toolName: String?, extensionName: String?)? {
+        guard let meta = raw["_meta"]?.objectValue,
+              let goose = meta["goose"]?.objectValue
+        else {
+            return nil
+        }
+
+        let toolCall = goose["mcpApp"]?.objectValue ?? goose["toolCall"]?.objectValue
+        guard let toolCall else {
+            return nil
+        }
+
+        let toolName = toolCall["toolName"]?.stringValue
+        let extensionName = toolCall["extensionName"]?.stringValue
+        guard toolName != nil || extensionName != nil else {
+            return nil
+        }
+
+        return (toolName, extensionName)
     }
 }
 

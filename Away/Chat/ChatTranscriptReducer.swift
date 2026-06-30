@@ -90,10 +90,14 @@ struct ChatTranscriptReducer {
             let tool = ToolActivity(
                 id: update.toolCallID ?? UUID().uuidString,
                 name: update.title ?? "Tool",
-                status: update.status ?? "in_progress"
+                status: update.status ?? "in_progress",
+                arguments: update.rawInput ?? [:],
+                toolName: update.toolName,
+                extensionName: update.extensionName,
+                chainSummary: update.toolChainSummary
             )
             appendContent(.tool(tool), to: messageID)
-            result.subtitle = "Tool \(tool.status): \(tool.name)"
+            result.subtitle = "Tool \(tool.status): \(tool.displayName)"
 
         case "tool_call_update":
             if let toolID = update.toolCallID {
@@ -219,6 +223,18 @@ struct ChatTranscriptReducer {
                 if let status = update.status {
                     tool.status = status
                 }
+                if let rawInput = update.rawInput {
+                    tool.arguments = rawInput
+                }
+                if let toolName = update.toolName {
+                    tool.toolName = toolName
+                }
+                if let extensionName = update.extensionName {
+                    tool.extensionName = extensionName
+                }
+                if let chainSummary = update.toolChainSummary {
+                    tool.chainSummary = chainSummary
+                }
                 tool.result = update.raw["result"]?.stringValue
                     ?? update.raw["content"]?.objectValue?["text"]?.stringValue
                     ?? tool.result
@@ -234,6 +250,10 @@ struct ChatTranscriptReducer {
                     id: toolID,
                     name: update.title ?? "Tool",
                     status: update.status ?? "updated",
+                    arguments: update.rawInput ?? [:],
+                    toolName: update.toolName,
+                    extensionName: update.extensionName,
+                    chainSummary: update.toolChainSummary,
                     result: update.raw["result"]?.stringValue
                 )
             ),
