@@ -80,9 +80,18 @@ GOOSE_REMOTE_SSH_COMMAND=goose acp
 GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64=<matching raw P-256 private key>
 ```
 
+The known-good local development target is this localhost `sshd` path. Do not infer a different target from stale simulator defaults or persisted settings such as `GOOSE_REMOTE_SSH_HOST=mini.local`; those values may be leftovers from another run and are not proof that SSH stdio should use that host. If SSH validation fails, first confirm the simulator was launched with the full environment above and that the local `sshd` is listening on `127.0.0.1:2222`.
+
+When the disposable local `sshd` is not already running, create it outside the repository. A typical setup is:
+
+1. Generate or reuse a P-256 keypair under `/tmp/goose-remote-sshd`.
+2. Add the public key to that temporary server's `authorized_keys`.
+3. Start `/usr/sbin/sshd` with a temporary config that binds only `127.0.0.1`, listens on port `2222`, allows the current local user, and executes normal user commands.
+4. Launch the app with `GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64` set to the raw base64 private key that matches the authorized public key.
+
 After one successful environment-backed launch, the prototype persists those demo settings for that Simulator. A later manual relaunch can reuse them, but a new clean Simulator cannot.
 
-If the thread is validating session/export/UI behavior and SSH setup is not the thing under test, it may use the direct WebSocket shortcut against a local `goose serve` target instead. In that case, launch with `GOOSE_REMOTE_TRANSPORT=direct-websocket` and call out in the handoff that validation used direct WebSocket rather than the default SSH stdio path.
+If the thread is validating session/export/UI behavior and SSH setup is not the thing under test, it may use the direct WebSocket shortcut against a local `goose serve` target instead. In that case, launch with `GOOSE_REMOTE_TRANSPORT=direct-websocket` and call out in the handoff that validation used direct WebSocket rather than the default SSH stdio path. Do not treat a successful direct-WebSocket run as validation of the default SSH stdio path.
 
 ## Handoff Requirements
 
@@ -92,6 +101,7 @@ When a spawned implementation thread launches or validates the app, its final ha
 - Simulator UDID.
 - Bundle identifier.
 - Whether the Codex in-app browser is showing the live app or a SwiftUI preview.
+- Any simulator mirror URL as a clickable Markdown link, such as `[http://localhost:3201](http://localhost:3201)`, not as inline code.
 - Any relevant launch environment, especially ACP transport and SSH settings.
 - Validation performed, including whether a real Goose ACP target was used.
 - `claude-code-review` result, or why it could not be run.
