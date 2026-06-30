@@ -91,19 +91,7 @@ When the disposable local `sshd` is not already running, create it outside the r
 
 After one successful environment-backed launch, the prototype persists those demo settings for that Simulator. A later manual relaunch can reuse them, but a new clean Simulator cannot.
 
-If the thread is diagnosing session-list UI, export, or connection state and SSH setup is not the behavior under test, it may explicitly use direct WebSocket against a local Goose ACP endpoint as a diagnostic/manual-testing fallback:
-
-```text
-GOOSE_REMOTE_TRANSPORT=direct-websocket
-GOOSE_REMOTE_ACP_URL=ws://127.0.0.1:32845/acp?token=local-secret
-GOOSE_REMOTE_DEFAULT_CWD=<repo-or-project-path>
-```
-
-Call this out in the handoff when used. Do not treat a successful direct-WebSocket run as validation of the default SSH stdio path, and do not treat stale launch defaults, persisted simulator preferences, or host names such as `mini.local` as evidence that this is the default path.
-
-With XcodeBuildMCP, build first, then use `launch_app_sim` with the explicit environment. A plain build-and-run launch may use persisted demo settings or fall back to SSH `127.0.0.1:22`.
-
-After any environment-backed launch, the prototype persists those explicit demo settings in that Simulator even if the connection fails. A later plain relaunch may therefore keep using the last explicit transport. If a direct WebSocket launch used to work and later fails, also confirm the local Goose ACP endpoint is still listening on the configured URL before assuming the app fell back to SSH.
+If the thread is validating session/export/UI behavior and SSH setup is not the thing under test, it may use the direct WebSocket shortcut against a local `goose serve` target instead. In that case, launch with `GOOSE_REMOTE_TRANSPORT=direct-websocket` and call out in the handoff that validation used direct WebSocket rather than the default SSH stdio path. Do not treat a successful direct-WebSocket run as validation of the default SSH stdio path.
 
 ## Handoff Requirements
 
