@@ -81,6 +81,9 @@ Chat session:
 - Render Markdown in text messages as attributed text.
 - Keep assistant streaming under stable message identity so text grows in place.
 - Auto-scroll only when the user is already near the bottom.
+- Animate optimistic user-posted messages, transient assistant progress, and new tool call bubbles as quick bottom insertions.
+- After a local user message is sent and before assistant content arrives, show a compact animated "Thinking..." progress row.
+- When assistant streaming increases transcript height, keep near-bottom following smooth and quick; if the user has scrolled away, preserve their position instead of pulling them to the bottom.
 - The transcript surface should virtualize row views with a platform-backed scroll container. On iOS, use a `UITableView`/UIKit-backed adapter so the app may keep the complete fetched transcript in memory without placing every message row in the SwiftUI view tree. Keep the adapter boundary narrow enough that a native macOS `NSViewRepresentable` transcript surface can replace the iOS adapter later.
 - Keep the composer pinned above the keyboard.
 
