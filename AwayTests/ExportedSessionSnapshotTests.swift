@@ -440,6 +440,47 @@ final class ExportedSessionSnapshotTests: XCTestCase {
     }
 
     @MainActor
+    func testSilentReplayDefersNotificationsUntilAuthoritativeFlush() {
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.setSilentReplayForTesting(true, sessionID: "s1")
+
+        model.enqueueNotificationForTesting(
+            notification(kind: "agent_message_chunk", messageID: "loaded", text: "authoritative")
+        )
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: nil)
+
+        XCTAssertEqual(model.pendingNotificationCountForTesting(sessionID: "s1"), 1)
+        XCTAssertNil(model.messagesBySession["s1"])
+
+        model.setSilentReplayForTesting(false, sessionID: "s1")
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: "s1")
+
+        XCTAssertEqual(model.pendingNotificationCountForTesting(sessionID: "s1"), 0)
+        XCTAssertEqual(model.messagesBySession["s1"]?.map(\.id), ["loaded"])
+        XCTAssertEqual(model.messagesBySession["s1"]?.map(\.plainText), ["authoritative"])
+        XCTAssertEqual(model.runtimeBySession["s1"]?.hasAuthoritativeReplay, true)
+    }
+
+    @MainActor
+    func testAuthoritativeReplayPreservesUnreplayedOptimisticUserMessageWithoutQueueingIt() {
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.messagesBySession["s1"] = [
+            ChatMessage(id: "local-user", role: .user, content: [.text("just sent")])
+        ]
+        model.runtimeBySession["s1"] = SessionRuntime(optimisticUserMessageIDs: ["local-user"])
+        model.appendPendingNotificationsForTesting([
+            notification(kind: "agent_message_chunk", messageID: "loaded", text: "already loaded")
+        ])
+
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: "s1")
+
+        XCTAssertEqual(model.messagesBySession["s1"]?.map(\.id), ["loaded", "local-user"])
+        XCTAssertEqual(model.messagesBySession["s1"]?.map(\.plainText), ["already loaded", "just sent"])
+        XCTAssertEqual(model.runtimeBySession["s1"]?.optimisticUserMessageIDs, ["local-user"])
+        XCTAssertEqual(model.runtimeBySession["s1"]?.queuedPromptCount, 0)
+    }
+
+    @MainActor
     func testPublishingSnapshotCapsSessionPreview() throws {
         let model = AppModel(connectionConfig: makeTestConnectionConfig())
         model.sessions = [SessionSummary(id: "s1", title: "Session")]

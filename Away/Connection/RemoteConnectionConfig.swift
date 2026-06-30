@@ -19,14 +19,15 @@ struct RemoteConnectionConfig: Sendable {
     )
 
     static func demo(environment: [String: String]) -> RemoteConnectionConfig {
-        makeDemoConfig(environment: environment)
+        makeDemoConfig(environment: environmentByApplyingGooseRemoteAliases(environment))
     }
 
     static func demo(
         environment: [String: String],
         settingsStore: DemoConnectionSettingsStore
     ) -> RemoteConnectionConfig {
-        let mergedEnvironment = settingsStore.environmentByMergingSavedSettings(with: environment)
+        let normalizedEnvironment = environmentByApplyingGooseRemoteAliases(environment)
+        let mergedEnvironment = settingsStore.environmentByMergingSavedSettings(with: normalizedEnvironment)
         let config = makeDemoConfig(environment: mergedEnvironment)
         settingsStore.saveExplicitSettings(from: environment)
         return config
@@ -76,6 +77,28 @@ struct RemoteConnectionConfig: Sendable {
 
     private static func normalizeMode(_ raw: String) -> String {
         raw.filter(\.isLetter).lowercased()
+    }
+
+    private static func environmentByApplyingGooseRemoteAliases(_ environment: [String: String]) -> [String: String] {
+        let aliases = [
+            "GOOSE_REMOTE_TRANSPORT": "AWAY_TRANSPORT",
+            "GOOSE_REMOTE_ACP_URL": "AWAY_ACP_URL",
+            "GOOSE_REMOTE_REMOTE_ACP_URL": "AWAY_REMOTE_ACP_URL",
+            "GOOSE_REMOTE_DEFAULT_CWD": "AWAY_DEFAULT_CWD",
+            "GOOSE_REMOTE_BACKGROUND_KEEPALIVE": "AWAY_BACKGROUND_KEEPALIVE",
+            "GOOSE_REMOTE_SSH_HOST": "AWAY_SSH_HOST",
+            "GOOSE_REMOTE_SSH_PORT": "AWAY_SSH_PORT",
+            "GOOSE_REMOTE_SSH_USERNAME": "AWAY_SSH_USERNAME",
+            "GOOSE_REMOTE_SSH_PASSWORD": "AWAY_SSH_PASSWORD",
+            "GOOSE_REMOTE_SSH_COMMAND": "AWAY_SSH_COMMAND",
+            "GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_PEM_BASE64": "AWAY_SSH_P256_PRIVATE_KEY_PEM_BASE64",
+            "GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64": "AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64"
+        ]
+        var normalized = environment
+        for (source, target) in aliases where normalized[target] == nil {
+            normalized[target] = normalized[source]
+        }
+        return normalized
     }
 
     private static func makeSSHConfig(environment: [String: String]) -> SSHConfig {

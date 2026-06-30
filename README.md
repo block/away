@@ -35,6 +35,12 @@ AWAY_SSH_PASSWORD=<password>
 AWAY_SSH_COMMAND=goose acp
 ```
 
+The app also accepts the matching `GOOSE_REMOTE_*` launch variables used by older
+Goose Remote validation scripts, for example `GOOSE_REMOTE_TRANSPORT`,
+`GOOSE_REMOTE_SSH_HOST`, and `GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64`.
+When both names are present, the `AWAY_*` value wins. `GOOSE_REMOTE_*` values
+configure the current launch but are not persisted for manual relaunches.
+
 For local protocol development, a direct WebSocket shortcut is also available:
 
 ```text

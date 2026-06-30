@@ -32,6 +32,38 @@ final class JSONValueTests: XCTestCase {
         XCTAssertEqual(session?.messageCount, 3)
     }
 
+    func testACPNotificationReadsGooseMessageMetadata() throws {
+        let data = """
+        {
+          "jsonrpc": "2.0",
+          "method": "session/update",
+          "params": {
+            "sessionId": "s1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "hello"
+              },
+              "_meta": {
+                "goose": {
+                  "messageId": "msg-1",
+                  "created": 1782859265
+                }
+              }
+            }
+          }
+        }
+        """.data(using: .utf8)!
+
+        let envelope = try JSONDecoder().decode(ACPEnvelope.self, from: data)
+        let notification = try XCTUnwrap(ACPNotification.from(envelope: envelope))
+
+        XCTAssertEqual(notification.sessionID, "s1")
+        XCTAssertEqual(notification.update.messageID, "msg-1")
+        XCTAssertEqual(notification.update.createdAt, Date(timeIntervalSince1970: 1_782_859_265))
+    }
+
     func testDemoConfigDefaultsToSSHStdio() {
         let config = RemoteConnectionConfig.demo(environment: [:])
 
@@ -97,6 +129,90 @@ final class JSONValueTests: XCTestCase {
         }
         XCTAssertEqual(config.defaultCWD, "/tmp/project")
         XCTAssertTrue(config.demoBackgroundKeepaliveEnabled)
+    }
+
+    func testDemoConfigReadsGooseRemoteSSHStdioAliases() {
+        let config = RemoteConnectionConfig.demo(environment: [
+            "GOOSE_REMOTE_TRANSPORT": "ssh-stdio",
+            "GOOSE_REMOTE_SSH_HOST": "127.0.0.1",
+            "GOOSE_REMOTE_SSH_PORT": "2222",
+            "GOOSE_REMOTE_SSH_USERNAME": "demo",
+            "GOOSE_REMOTE_SSH_PASSWORD": "secret",
+            "GOOSE_REMOTE_SSH_COMMAND": "goose acp"
+        ])
+
+        switch config.mode {
+        case .sshStdio(let ssh):
+            XCTAssertEqual(ssh.host, "127.0.0.1")
+            XCTAssertEqual(ssh.port, 2222)
+            XCTAssertEqual(ssh.username, "demo")
+            XCTAssertEqual(ssh.command, "goose acp")
+            switch ssh.authentication {
+            case .password(let password):
+                XCTAssertEqual(password, "secret")
+            default:
+                XCTFail("Expected password auth")
+            }
+        default:
+            XCTFail("Expected SSH stdio mode")
+        }
+    }
+
+    func testDemoConfigPrefersAwayEnvironmentOverGooseRemoteAliases() {
+        let config = RemoteConnectionConfig.demo(environment: [
+            "AWAY_TRANSPORT": "direct-websocket",
+            "AWAY_ACP_URL": "ws://away.example:32845/acp?token=away",
+            "GOOSE_REMOTE_TRANSPORT": "ssh-stdio",
+            "GOOSE_REMOTE_SSH_HOST": "127.0.0.1"
+        ])
+
+        switch config.mode {
+        case .directWebSocket(let url):
+            XCTAssertEqual(url.absoluteString, "ws://away.example:32845/acp?token=away")
+        default:
+            XCTFail("Expected explicit AWAY transport to win")
+        }
+    }
+
+    func testDemoConfigDoesNotPersistGooseRemoteAliasesForManualRelaunch() throws {
+        let suiteName = "AwayTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let store = DemoConnectionSettingsStore(defaults: defaults)
+        defer {
+            store.clear()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        _ = RemoteConnectionConfig.demo(
+            environment: [
+                "GOOSE_REMOTE_TRANSPORT": "ssh-stdio",
+                "GOOSE_REMOTE_SSH_HOST": "127.0.0.1",
+                "GOOSE_REMOTE_SSH_PORT": "2222",
+                "GOOSE_REMOTE_SSH_USERNAME": "demo",
+                "GOOSE_REMOTE_SSH_PASSWORD": "secret"
+            ],
+            settingsStore: store
+        )
+
+        let relaunchedConfig = RemoteConnectionConfig.demo(
+            environment: [:],
+            settingsStore: store
+        )
+
+        switch relaunchedConfig.mode {
+        case .sshStdio(let ssh):
+            XCTAssertEqual(ssh.host, "127.0.0.1")
+            XCTAssertEqual(ssh.port, 22)
+            XCTAssertEqual(ssh.username, NSUserName())
+            switch ssh.authentication {
+            case .none:
+                break
+            default:
+                XCTFail("Expected GOOSE_REMOTE key material not to persist")
+            }
+        default:
+            XCTFail("Expected default SSH stdio mode")
+        }
     }
 
     func testDemoConfigPersistsSSHEnvironmentForManualRelaunch() throws {

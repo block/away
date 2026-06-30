@@ -6,7 +6,8 @@ struct ChatTranscriptReducer {
 
     static func authoritativeReplay(
         notifications: [ACPNotification],
-        preservingLocalPrompts localPrompts: [QueuedPrompt] = []
+        preservingLocalPrompts localPrompts: [QueuedPrompt] = [],
+        preservingOptimisticMessages optimisticMessages: [ChatMessage] = []
     ) -> (messages: [ChatMessage], runtime: SessionRuntime, result: TranscriptApplyResult, queuedPrompts: [QueuedPrompt]) {
         var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
         var mergedResult = TranscriptApplyResult()
@@ -25,6 +26,21 @@ struct ChatTranscriptReducer {
 
         for prompt in unreplayedLocalPrompts {
             reducer.appendLocalUserMessage(id: prompt.id, text: prompt.text)
+        }
+
+        let unreplayedOptimisticMessages = optimisticMessages.filter { optimisticMessage in
+            optimisticMessage.role == .user
+                && !reducer.messages.contains { replayedMessage in
+                    replayedMessage.id == optimisticMessage.id
+                        || (
+                            replayedMessage.role == .user
+                                && replayedMessage.plainText?.normalizedTranscriptText
+                                    == optimisticMessage.plainText?.normalizedTranscriptText
+                        )
+                }
+        }
+        for message in unreplayedOptimisticMessages {
+            reducer.appendOptimisticUserMessage(message)
         }
 
         reducer.runtime.activeRunID = nil
@@ -51,6 +67,12 @@ struct ChatTranscriptReducer {
         runtime.optimisticUserMessageIDs.insert(id)
     }
 
+    private mutating func appendOptimisticUserMessage(_ message: ChatMessage) {
+        finishStreamingMessage()
+        messages.append(message)
+        runtime.optimisticUserMessageIDs.insert(message.id)
+    }
+
     mutating func apply(_ notification: ACPNotification) -> TranscriptApplyResult {
         let update = notification.update
         var result = TranscriptApplyResult()
@@ -62,7 +84,7 @@ struct ChatTranscriptReducer {
         switch update.kind {
         case "agent_message", "agent_message_chunk":
             if let content = update.content {
-                let messageID = ensureAssistantMessage(id: update.messageID)
+                let messageID = ensureAssistantMessage(id: update.messageID, createdAt: update.createdAt)
                 if let text = textContent(from: content), !text.isEmpty {
                     let shouldNotify = hasNoTextContent(messageID: messageID)
                     appendText(text, to: messageID)
@@ -81,12 +103,12 @@ struct ChatTranscriptReducer {
                let text = textContent(from: content) {
                 finishStreamingMessage()
                 let messageID = update.messageID ?? UUID().uuidString
-                appendUserText(text, messageID: messageID)
+                appendUserText(text, messageID: messageID, createdAt: update.createdAt)
                 result.subtitle = text
             }
 
         case "tool_call":
-            let messageID = ensureAssistantMessage(id: update.messageID)
+            let messageID = ensureAssistantMessage(id: update.messageID, createdAt: update.createdAt)
             let tool = ToolActivity(
                 id: update.toolCallID ?? UUID().uuidString,
                 name: update.title ?? "Tool",
@@ -121,13 +143,14 @@ struct ChatTranscriptReducer {
         return result
     }
 
-    private mutating func ensureAssistantMessage(id preferredID: String?) -> String {
+    private mutating func ensureAssistantMessage(id preferredID: String?, createdAt: Date?) -> String {
         if let preferredID {
             if !messages.contains(where: { $0.id == preferredID }) {
                 messages.append(
                     ChatMessage(
                         id: preferredID,
                         role: .assistant,
+                        createdAt: createdAt ?? Date(),
                         content: [],
                         isStreaming: true
                     )
@@ -175,7 +198,7 @@ struct ChatTranscriptReducer {
         }
     }
 
-    private mutating func appendUserText(_ text: String, messageID: String) {
+    private mutating func appendUserText(_ text: String, messageID: String, createdAt: Date?) {
         if let index = messages.firstIndex(where: { $0.id == messageID }),
            case .text(let existing) = messages[index].content.last {
             if runtime.optimisticUserMessageIDs.contains(messageID)
@@ -196,7 +219,14 @@ struct ChatTranscriptReducer {
         } else if hasMatchingOptimisticOrSnapshotUserMessage(text) {
             return
         } else {
-            messages.append(ChatMessage(id: messageID, role: .user, content: [.text(text)]))
+            messages.append(
+                ChatMessage(
+                    id: messageID,
+                    role: .user,
+                    createdAt: createdAt ?? Date(),
+                    content: [.text(text)]
+                )
+            )
         }
     }
 
@@ -227,7 +257,7 @@ struct ChatTranscriptReducer {
             }
         }
 
-        let messageID = ensureAssistantMessage(id: update.messageID)
+        let messageID = ensureAssistantMessage(id: update.messageID, createdAt: update.createdAt)
         appendContent(
             .tool(
                 ToolActivity(

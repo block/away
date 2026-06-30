@@ -13,6 +13,18 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertEqual(reducer.messages[0].content, [.text("Hello world")])
     }
 
+    func testAssistantChunksUseGooseMetaMessageID() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        _ = reducer.apply(gooseMetaNotification(kind: "agent_message_chunk", messageID: "m1", text: "Hello", created: 1_700))
+        _ = reducer.apply(gooseMetaNotification(kind: "agent_message_chunk", messageID: "m1", text: " world", created: 1_700))
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].id, "m1")
+        XCTAssertEqual(reducer.messages[0].createdAt, Date(timeIntervalSince1970: 1_700))
+        XCTAssertEqual(reducer.messages[0].content, [.text("Hello world")])
+    }
+
     func testLateAssistantReplayChunksDoNotDuplicateSnapshotText() {
         var reducer = ChatTranscriptReducer(
             messages: [
@@ -87,6 +99,19 @@ final class ChatTranscriptReducerTests: XCTestCase {
         _ = reducer.apply(notification(kind: "user_message_chunk", messageID: "u1", text: " there"))
 
         XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].role, .user)
+        XCTAssertEqual(reducer.messages[0].content, [.text("hi there")])
+    }
+
+    func testUserChunksUseGooseMetaMessageID() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        _ = reducer.apply(gooseMetaNotification(kind: "user_message_chunk", messageID: "u1", text: "hi", created: 1_800))
+        _ = reducer.apply(gooseMetaNotification(kind: "user_message_chunk", messageID: "u1", text: " there", created: 1_800))
+
+        XCTAssertEqual(reducer.messages.count, 1)
+        XCTAssertEqual(reducer.messages[0].id, "u1")
+        XCTAssertEqual(reducer.messages[0].createdAt, Date(timeIntervalSince1970: 1_800))
         XCTAssertEqual(reducer.messages[0].role, .user)
         XCTAssertEqual(reducer.messages[0].content, [.text("hi there")])
     }
@@ -389,6 +414,30 @@ final class ChatTranscriptReducerTests: XCTestCase {
                 "sessionUpdate": .string(kind),
                 "messageId": .string(messageID),
                 "content": .object(content)
+            ])
+        )
+    }
+
+    private func gooseMetaNotification(
+        kind: String,
+        messageID: String,
+        text: String,
+        created: Int
+    ) -> ACPNotification {
+        ACPNotification(
+            sessionID: "s1",
+            update: ACPUpdate(raw: [
+                "sessionUpdate": .string(kind),
+                "content": [
+                    "type": "text",
+                    "text": .string(text)
+                ],
+                "_meta": [
+                    "goose": [
+                        "messageId": .string(messageID),
+                        "created": .number(Double(created))
+                    ]
+                ]
             ])
         )
     }
