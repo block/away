@@ -55,16 +55,31 @@ final class AppModel {
     @ObservationIgnored private var queuedPromptAttachRetryAttemptsBySession: [String: Int] = [:]
     @ObservationIgnored private var shortBackgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @ObservationIgnored private var lastNotifiedMessageIDs: Set<String> = []
-    @ObservationIgnored private let connectionConfig: RemoteConnectionConfig
+    @ObservationIgnored private let connectionConfig: RemoteConnectionConfig?
+    @ObservationIgnored private let startupConfigurationError: String
     @ObservationIgnored private let notificationCoordinator = NotificationCoordinator.shared
     @ObservationIgnored private let backgroundKeepalive = DemoBackgroundKeepaliveService()
     @ObservationIgnored private let exportTailMessageLimit = 16
     @ObservationIgnored private let loadDelay = Duration.milliseconds(450)
     @ObservationIgnored private let maxQueuedPromptAttachRetryAttempts = 3
 
-    init(connectionConfig: RemoteConnectionConfig = .demo) {
+    init(connectionConfig: RemoteConnectionConfig) {
         self.connectionConfig = connectionConfig
+        self.startupConfigurationError = ""
         self.demoBackgroundKeepaliveEnabled = connectionConfig.demoBackgroundKeepaliveEnabled
+    }
+
+    init(connectionConfigResult: Result<RemoteConnectionConfig, RemoteConnectionConfigError> = RemoteConnectionConfig.demo) {
+        switch connectionConfigResult {
+        case .success(let connectionConfig):
+            self.connectionConfig = connectionConfig
+            self.startupConfigurationError = ""
+            self.demoBackgroundKeepaliveEnabled = connectionConfig.demoBackgroundKeepaliveEnabled
+        case .failure(let error):
+            self.connectionConfig = nil
+            self.startupConfigurationError = error.localizedDescription
+            self.demoBackgroundKeepaliveEnabled = false
+        }
     }
 
     var activeSession: SessionSummary? {
@@ -133,6 +148,13 @@ final class AppModel {
         await closeCurrentClient()
         connectionState = .connecting
         errorMessage = nil
+
+        guard let connectionConfig else {
+            precondition(!startupConfigurationError.isEmpty, "Missing startup configuration error.")
+            connectionState = .failed(startupConfigurationError)
+            errorMessage = startupConfigurationError
+            return
+        }
 
         do {
             let transport = try RemoteConnectionProvider().makeTransport(config: connectionConfig)
@@ -232,7 +254,7 @@ final class AppModel {
 
         do {
             let cwd = sessions.first(where: { $0.id == sessionID })?.cwd
-            try await client.loadSession(sessionID: sessionID, cwd: cwd ?? connectionConfig.defaultCWD)
+            try await client.loadSession(sessionID: sessionID, cwd: cwd ?? connectionConfig?.defaultCWD ?? "~")
             guard isCurrentOpen(sessionID: sessionID, token: openToken) else {
                 clearOpeningStateIfNoLongerCurrent(sessionID: sessionID)
                 return
