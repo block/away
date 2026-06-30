@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct MessageBubbleView: View {
@@ -93,13 +94,46 @@ private struct TranscriptTextView: View {
     }
 
     private var attributedDisplayText: AttributedString {
+        TranscriptAttributedTextCache.shared.attributedText(for: displayText)
+    }
+}
+
+private final class TranscriptAttributedTextCache: @unchecked Sendable {
+    static let shared = TranscriptAttributedTextCache()
+
+    private let cache = NSCache<NSString, CachedTranscriptAttributedText>()
+
+    private init() {
+        cache.countLimit = 300
+    }
+
+    func attributedText(for text: String) -> AttributedString {
+        let key = text as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached.value
+        }
+
+        let parsed = Self.parse(text)
+        cache.setObject(CachedTranscriptAttributedText(parsed), forKey: key)
+        return parsed
+    }
+
+    private static func parse(_ text: String) -> AttributedString {
         (
             try? AttributedString(
-                markdown: displayText,
+                markdown: text,
                 options: AttributedString.MarkdownParsingOptions(
                     interpretedSyntax: .inlineOnlyPreservingWhitespace
                 )
             )
-        ) ?? AttributedString(displayText)
+        ) ?? AttributedString(text)
+    }
+}
+
+private final class CachedTranscriptAttributedText {
+    let value: AttributedString
+
+    init(_ value: AttributedString) {
+        self.value = value
     }
 }
