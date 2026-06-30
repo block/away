@@ -36,13 +36,42 @@ enum TranscriptSurfaceRows {
     static func make(
         session: SessionSummary?,
         messages: [ChatMessage],
-        isLoading: Bool
+        isLoading: Bool,
+        hasAuthoritativeReplay: Bool,
+        snapshotMessageIDs: Set<String>,
+        optimisticUserMessageIDs: Set<String>
     ) -> [TranscriptSurfaceRow] {
-        if let session, messages.isEmpty, isLoading {
+        let presentedMessages = TranscriptOpeningPresentationPolicy.presentedMessages(
+            messages,
+            isLoading: isLoading,
+            hasAuthoritativeReplay: hasAuthoritativeReplay,
+            snapshotMessageIDs: snapshotMessageIDs,
+            optimisticUserMessageIDs: optimisticUserMessageIDs
+        )
+
+        if let session, presentedMessages.isEmpty, isLoading {
             return [.sessionShell(session)]
         }
 
-        return messages.map(TranscriptSurfaceRow.message)
+        return presentedMessages.map(TranscriptSurfaceRow.message)
+    }
+}
+
+enum TranscriptOpeningPresentationPolicy {
+    static func presentedMessages(
+        _ messages: [ChatMessage],
+        isLoading: Bool,
+        hasAuthoritativeReplay: Bool,
+        snapshotMessageIDs: Set<String>,
+        optimisticUserMessageIDs: Set<String>
+    ) -> [ChatMessage] {
+        guard isLoading, !hasAuthoritativeReplay else {
+            return messages
+        }
+
+        return messages.filter { message in
+            optimisticUserMessageIDs.contains(message.id) || !snapshotMessageIDs.contains(message.id)
+        }
     }
 }
 
@@ -75,6 +104,9 @@ struct TranscriptSurface: View {
     let session: SessionSummary?
     let messages: [ChatMessage]
     let isLoading: Bool
+    let hasAuthoritativeReplay: Bool
+    let snapshotMessageIDs: Set<String>
+    let optimisticUserMessageIDs: Set<String>
     let earlierMessageCount: Int
     let scrollIntent: TranscriptScrollIntent?
     let onReachTop: () -> Void
@@ -84,7 +116,10 @@ struct TranscriptSurface: View {
         let rows = TranscriptSurfaceRows.make(
             session: session,
             messages: messages,
-            isLoading: isLoading
+            isLoading: isLoading,
+            hasAuthoritativeReplay: hasAuthoritativeReplay,
+            snapshotMessageIDs: snapshotMessageIDs,
+            optimisticUserMessageIDs: optimisticUserMessageIDs
         )
 
         #if os(iOS)

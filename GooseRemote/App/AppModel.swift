@@ -180,7 +180,10 @@ final class AppModel {
             return
         }
 
-        var openToken = prepareOpenSessionState(
+        var openToken = preparedOpenToken(
+            for: sessionID,
+            preservingExistingMessages: preservingExistingMessages
+        ) ?? prepareOpenSessionState(
             sessionID,
             preservingExistingMessages: preservingExistingMessages
         )
@@ -256,6 +259,26 @@ final class AppModel {
         }
     }
 
+    func prepareSessionForNavigation(_ sessionID: String) {
+        if runtimeBySession[sessionID]?.hasAuthoritativeReplay == true,
+           messagesBySession[sessionID]?.isEmpty == false {
+            activeSessionID = sessionID
+            var runtime = runtimeBySession[sessionID] ?? SessionRuntime()
+            runtime.isOpening = false
+            runtime.isReplaying = false
+            runtime.errorMessage = nil
+            runtimeBySession[sessionID] = runtime
+            return
+        }
+
+        guard preparedOpenToken(for: sessionID, preservingExistingMessages: false) == nil else {
+            activeSessionID = sessionID
+            return
+        }
+
+        prepareOpenSessionState(sessionID, preservingExistingMessages: false)
+    }
+
     @discardableResult
     func prepareOpenSessionState(
         _ sessionID: String,
@@ -278,6 +301,23 @@ final class AppModel {
             runtime.streamingMessageID = nil
             runtimeBySession[sessionID] = runtime
         }
+        return openToken
+    }
+
+    private func preparedOpenToken(
+        for sessionID: String,
+        preservingExistingMessages: Bool
+    ) -> UUID? {
+        guard !preservingExistingMessages,
+              let openToken = openSessionTokens[sessionID],
+              runtimeBySession[sessionID]?.isOpening == true,
+              runtimeBySession[sessionID]?.isReplaying == false,
+              messagesBySession[sessionID]?.isEmpty == true,
+              earlierMessagesBySession[sessionID]?.isEmpty == true
+        else {
+            return nil
+        }
+
         return openToken
     }
 

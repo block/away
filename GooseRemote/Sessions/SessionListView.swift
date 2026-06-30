@@ -23,9 +23,19 @@ struct SessionListView: View {
                 } else {
                     Section("Recent") {
                         ForEach(model.sessions) { session in
-                            NavigationLink(value: session.id) {
-                                SessionRowView(session: session)
+                            Button {
+                                model.prepareSessionForNavigation(session.id)
+                                path.append(session.id)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    SessionRowView(session: session)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -53,6 +63,10 @@ struct SessionListView: View {
             }
             .navigationDestination(for: String.self) { sessionID in
                 ChatView(sessionID: sessionID)
+            }
+            .onChange(of: path) { _, newPath in
+                guard let sessionID = newPath.last else { return }
+                model.prepareSessionForNavigation(sessionID)
             }
         }
     }

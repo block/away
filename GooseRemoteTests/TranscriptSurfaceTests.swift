@@ -11,10 +11,64 @@ final class TranscriptSurfaceTests: XCTestCase {
         let rows = TranscriptSurfaceRows.make(
             session: session,
             messages: [],
-            isLoading: true
+            isLoading: true,
+            hasAuthoritativeReplay: false,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
 
         XCTAssertEqual(rows, [.sessionShell(session)])
+    }
+
+    func testRowsUseSessionShellWhileOnlyProvisionalSnapshotIsLoading() {
+        let session = SessionSummary(id: "s1", title: "Large Session", messageCount: 4_000)
+        let messages = [
+            ChatMessage(id: "snapshot-1", role: .assistant, content: [.text("Provisional tail")])
+        ]
+
+        let rows = TranscriptSurfaceRows.make(
+            session: session,
+            messages: messages,
+            isLoading: true,
+            hasAuthoritativeReplay: false,
+            snapshotMessageIDs: ["snapshot-1"],
+            optimisticUserMessageIDs: []
+        )
+
+        XCTAssertEqual(rows, [.sessionShell(session)])
+    }
+
+    func testRowsKeepOptimisticMessagesVisibleWhileSnapshotIsLoading() {
+        let session = SessionSummary(id: "s1", title: "Large Session", messageCount: 4_000)
+        let snapshot = ChatMessage(id: "snapshot-1", role: .assistant, content: [.text("Provisional tail")])
+        let optimistic = ChatMessage(id: "local-1", role: .user, content: [.text("Queued prompt")])
+
+        let rows = TranscriptSurfaceRows.make(
+            session: session,
+            messages: [snapshot, optimistic],
+            isLoading: true,
+            hasAuthoritativeReplay: false,
+            snapshotMessageIDs: ["snapshot-1"],
+            optimisticUserMessageIDs: ["local-1"]
+        )
+
+        XCTAssertEqual(rows, [.message(optimistic)])
+    }
+
+    func testRowsShowSnapshotAfterLoadingCompletes() {
+        let session = SessionSummary(id: "s1", title: "Large Session", messageCount: 4_000)
+        let snapshot = ChatMessage(id: "snapshot-1", role: .assistant, content: [.text("Fallback tail")])
+
+        let rows = TranscriptSurfaceRows.make(
+            session: session,
+            messages: [snapshot],
+            isLoading: false,
+            hasAuthoritativeReplay: false,
+            snapshotMessageIDs: ["snapshot-1"],
+            optimisticUserMessageIDs: []
+        )
+
+        XCTAssertEqual(rows, [.message(snapshot)])
     }
 
     func testRowsExposeAllFetchedMessagesToPlatformAdapter() {
@@ -23,7 +77,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let rows = TranscriptSurfaceRows.make(
             session: nil,
             messages: messages,
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
 
         XCTAssertEqual(rows.count, 5_000)
@@ -73,7 +130,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let rows = TranscriptSurfaceRows.make(
             session: nil,
             messages: makeMessages(count: 5_000),
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
         let dataSource = TranscriptTableViewDataSource()
         dataSource.rows = rows
@@ -98,7 +158,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let rows = TranscriptSurfaceRows.make(
             session: nil,
             messages: makeMessages(count: 80),
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
 
         harness.coordinator.update(
@@ -141,7 +204,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let rows = TranscriptSurfaceRows.make(
             session: nil,
             messages: makeMessages(count: 80),
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
         harness.coordinator.update(
             tableView: harness.tableView,
@@ -161,7 +227,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let prependedRows = TranscriptSurfaceRows.make(
             session: nil,
             messages: makeMessages(count: 10, idPrefix: "older") + makeMessages(count: 80),
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
         harness.coordinator.update(
             tableView: harness.tableView,
@@ -184,7 +253,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let rows = TranscriptSurfaceRows.make(
             session: nil,
             messages: makeMessages(count: 30),
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
         let scrollIntent = TranscriptScrollIntent(
             target: .message("message-45"),
@@ -203,7 +275,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let expandedRows = TranscriptSurfaceRows.make(
             session: nil,
             messages: makeMessages(count: 60),
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
         harness.coordinator.update(
             tableView: harness.tableView,
@@ -222,7 +297,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let rows = TranscriptSurfaceRows.make(
             session: nil,
             messages: makeMessages(count: 80),
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
 
         harness.coordinator.update(
@@ -247,7 +325,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let rows = TranscriptSurfaceRows.make(
             session: nil,
             messages: makeMessages(count: 80),
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
         harness.coordinator.update(
             tableView: harness.tableView,
@@ -291,7 +372,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let rows = TranscriptSurfaceRows.make(
             session: nil,
             messages: makeMessages(count: 1),
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
 
         harness.coordinator.update(
@@ -311,7 +395,10 @@ final class TranscriptSurfaceTests: XCTestCase {
         let rows = TranscriptSurfaceRows.make(
             session: nil,
             messages: makeMessages(count: 40),
-            isLoading: false
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
         )
 
         harness.coordinator.update(

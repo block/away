@@ -13,20 +13,27 @@ struct ChatView: View {
         let isLoading = runtime.isOpening || runtime.isReplaying
 
         VStack(spacing: 0) {
-            if isLoading {
-                ProgressView("Loading session")
-                    .font(.caption)
-                    .padding(.vertical, 8)
-            }
+            ZStack(alignment: .top) {
+                ChatTranscriptView(
+                    session: session,
+                    messages: messages,
+                    isLoading: isLoading,
+                    hasAuthoritativeReplay: runtime.hasAuthoritativeReplay,
+                    snapshotMessageIDs: runtime.snapshotMessageIDs,
+                    optimisticUserMessageIDs: runtime.optimisticUserMessageIDs,
+                    earlierMessageCount: earlierMessageCount
+                ) {
+                    model.revealEarlierMessages(for: sessionID)
+                }
 
-            ChatTranscriptView(
-                session: session,
-                messages: messages,
-                isLoading: isLoading,
-                hasTailSnapshot: runtime.hasTailSnapshot,
-                earlierMessageCount: earlierMessageCount
-            ) {
-                model.revealEarlierMessages(for: sessionID)
+                if isLoading {
+                    LoadingSessionBadge()
+                        .padding(.top, 8)
+                        .allowsHitTesting(false)
+                        .transaction { transaction in
+                            transaction.disablesAnimations = true
+                        }
+                }
             }
 
             if let error = runtime.errorMessage {
@@ -69,7 +76,9 @@ private struct ChatTranscriptView: View {
     let session: SessionSummary?
     let messages: [ChatMessage]
     let isLoading: Bool
-    let hasTailSnapshot: Bool
+    let hasAuthoritativeReplay: Bool
+    let snapshotMessageIDs: Set<String>
+    let optimisticUserMessageIDs: Set<String>
     let earlierMessageCount: Int
     let onRevealEarlierMessages: () -> Void
 
@@ -77,7 +86,11 @@ private struct ChatTranscriptView: View {
     @State private var bottomScrollSequence = 0
 
     private var canSettleToBottom: Bool {
-        !isLoading || hasTailSnapshot
+        !isLoading || hasAuthoritativeReplay
+    }
+
+    private var canRevealEarlierMessages: Bool {
+        !isLoading || hasAuthoritativeReplay
     }
 
     var body: some View {
@@ -85,10 +98,13 @@ private struct ChatTranscriptView: View {
             session: session,
             messages: messages,
             isLoading: isLoading,
-            earlierMessageCount: earlierMessageCount,
+            hasAuthoritativeReplay: hasAuthoritativeReplay,
+            snapshotMessageIDs: snapshotMessageIDs,
+            optimisticUserMessageIDs: optimisticUserMessageIDs,
+            earlierMessageCount: canRevealEarlierMessages ? earlierMessageCount : 0,
             scrollIntent: scrollIntent,
             onReachTop: {
-                guard earlierMessageCount > 0 else { return }
+                guard canRevealEarlierMessages, earlierMessageCount > 0 else { return }
                 onRevealEarlierMessages()
             },
             onNearBottomChanged: { isNearBottom in
@@ -139,5 +155,20 @@ private struct ChatTranscriptView: View {
 
     private func requestBottomScroll() {
         bottomScrollSequence += 1
+    }
+}
+
+private struct LoadingSessionBadge: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.mini)
+            Text("Loading session")
+                .font(.caption)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(.regularMaterial, in: Capsule())
+        .accessibilityElement(children: .combine)
     }
 }

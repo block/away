@@ -288,6 +288,50 @@ final class ExportedSessionSnapshotTests: XCTestCase {
     }
 
     @MainActor
+    func testPreparingNavigationStartsStableOpeningShell() {
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.messagesBySession["s1"] = [
+            ChatMessage(id: "stale", role: .assistant, content: [.text("stale")])
+        ]
+        model.earlierMessagesBySession["s1"] = [
+            ChatMessage(id: "older", role: .assistant, content: [.text("older")])
+        ]
+        model.setQueuedPromptsForTesting([QueuedPrompt(id: "q1", text: "queued")], for: "s1")
+        _ = model.consumeNextQueuedPromptAttachRetryDecision(for: "s1")
+
+        model.prepareSessionForNavigation("s1")
+
+        XCTAssertEqual(model.activeSessionID, "s1")
+        XCTAssertEqual(model.messagesBySession["s1"], [])
+        XCTAssertEqual(model.earlierMessagesBySession["s1"], [])
+        XCTAssertEqual(model.runtimeBySession["s1"], SessionRuntime(isOpening: true))
+        XCTAssertNil(model.queuedPromptAttachRetryAttemptsForTesting(sessionID: "s1"))
+    }
+
+    @MainActor
+    func testPreparingNavigationReusesAuthoritativeTranscript() {
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.messagesBySession["s1"] = [
+            ChatMessage(id: "loaded", role: .assistant, content: [.text("already loaded")])
+        ]
+        model.runtimeBySession["s1"] = SessionRuntime(
+            isOpening: true,
+            isReplaying: true,
+            hasAuthoritativeReplay: true,
+            errorMessage: "stale"
+        )
+
+        model.prepareSessionForNavigation("s1")
+
+        XCTAssertEqual(model.activeSessionID, "s1")
+        XCTAssertEqual(model.messagesBySession["s1"]?.map(\.id), ["loaded"])
+        XCTAssertEqual(model.runtimeBySession["s1"]?.isOpening, false)
+        XCTAssertEqual(model.runtimeBySession["s1"]?.isReplaying, false)
+        XCTAssertEqual(model.runtimeBySession["s1"]?.hasAuthoritativeReplay, true)
+        XCTAssertNil(model.runtimeBySession["s1"]?.errorMessage)
+    }
+
+    @MainActor
     func testQueuedPromptAttachRetryDecisionIsBoundedAndSetsGiveUpError() {
         let model = AppModel(connectionConfig: makeTestConnectionConfig())
         model.setQueuedPromptsForTesting([QueuedPrompt(id: "q1", text: "queued")], for: "s1")
