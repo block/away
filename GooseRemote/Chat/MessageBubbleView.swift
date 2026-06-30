@@ -74,7 +74,6 @@ private struct TranscriptTextView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(attributedDisplayText)
                 .font(.body)
-                .textSelection(.enabled)
 
             if isTruncated {
                 Text("Long message truncated for the prototype.")
