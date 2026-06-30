@@ -195,7 +195,7 @@ enum TranscriptAnimationTiming {
 
     private static let scale: TimeInterval = {
         #if DEBUG
-        guard let rawValue = ProcessInfo.processInfo.environment["GOOSE_REMOTE_TRANSCRIPT_ANIMATION_SCALE"],
+        guard let rawValue = ProcessInfo.processInfo.environment["AWAY_TRANSCRIPT_ANIMATION_SCALE"],
               let value = TimeInterval(rawValue)
         else {
             return 1
