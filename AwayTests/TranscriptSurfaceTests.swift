@@ -847,6 +847,145 @@ final class TranscriptSurfaceTests: XCTestCase {
     }
 
     @MainActor
+    func testCoordinatorContinuesFollowingRapidStreamingGrowthBeforeScrollAnimationSettles() throws {
+        let harness = try makeCoordinatorHarness()
+        let user = ChatMessage(id: "local-user", role: .user, content: [.text("Reply with 15 paragraphs")])
+        let initialRows = [
+            TranscriptSurfaceRow.message(user),
+            TranscriptSurfaceRow.message(
+                ChatMessage(
+                    id: "assistant-1",
+                    role: .assistant,
+                    content: [.text("Paragraph 1.")],
+                    isStreaming: true
+                )
+            )
+        ]
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: initialRows,
+            earlierMessageCount: 0,
+            scrollIntent: TranscriptScrollIntent(target: .bottom, anchor: .bottom, animated: false, sequence: 1)
+        )
+        pumpLayout(for: harness.tableView)
+        XCTAssertLessThanOrEqual(distanceFromBottom(harness.tableView), 170)
+
+        let firstGrowthRows = [
+            TranscriptSurfaceRow.message(user),
+            TranscriptSurfaceRow.message(
+                ChatMessage(
+                    id: "assistant-1",
+                    role: .assistant,
+                    content: [.text(paragraphText(count: 9))],
+                    isStreaming: true
+                )
+            )
+        ]
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: firstGrowthRows,
+            earlierMessageCount: 0,
+            scrollIntent: nil
+        )
+
+        XCTAssertGreaterThan(distanceFromBottom(harness.tableView), 170)
+
+        let secondGrowthRows = [
+            TranscriptSurfaceRow.message(user),
+            TranscriptSurfaceRow.message(
+                ChatMessage(
+                    id: "assistant-1",
+                    role: .assistant,
+                    content: [.text(paragraphText(count: 15))],
+                    isStreaming: true
+                )
+            )
+        ]
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: secondGrowthRows,
+            earlierMessageCount: 0,
+            scrollIntent: nil
+        )
+
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        harness.tableView.layoutIfNeeded()
+
+        XCTAssertLessThanOrEqual(distanceFromBottom(harness.tableView), 170)
+        XCTAssertTrue(
+            harness.tableView.indexPathsForVisibleRows?.contains(IndexPath(row: secondGrowthRows.count - 1, section: 0)) == true
+        )
+    }
+
+    @MainActor
+    func testCoordinatorContinuesFollowingDelayedStreamingContentSizeGrowth() throws {
+        let harness = try makeCoordinatorHarness()
+        let user = ChatMessage(id: "local-user", role: .user, content: [.text("Reply with 15 paragraphs")])
+        let initialRows = [
+            TranscriptSurfaceRow.message(user),
+            TranscriptSurfaceRow.message(
+                ChatMessage(
+                    id: "assistant-1",
+                    role: .assistant,
+                    content: [.text("Paragraph 1.")],
+                    isStreaming: true
+                )
+            )
+        ]
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: initialRows,
+            earlierMessageCount: 0,
+            scrollIntent: TranscriptScrollIntent(target: .bottom, anchor: .bottom, animated: false, sequence: 1)
+        )
+        pumpLayout(for: harness.tableView)
+
+        let streamingRows = [
+            TranscriptSurfaceRow.message(user),
+            TranscriptSurfaceRow.message(
+                ChatMessage(
+                    id: "assistant-1",
+                    role: .assistant,
+                    content: [.text(paragraphText(count: 4))],
+                    isStreaming: true
+                )
+            )
+        ]
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: streamingRows,
+            earlierMessageCount: 0,
+            scrollIntent: nil
+        )
+        RunLoop.main.run(until: Date().addingTimeInterval(0.35))
+        harness.tableView.layoutIfNeeded()
+
+        let settledSize = harness.tableView.contentSize
+        let oldDelayedSize = CGSize(
+            width: settledSize.width,
+            height: settledSize.height + 360
+        )
+        let newDelayedSize = CGSize(
+            width: settledSize.width,
+            height: oldDelayedSize.height + 360
+        )
+        harness.tableView.contentSize = newDelayedSize
+        XCTAssertGreaterThan(distanceFromBottom(harness.tableView), 170)
+
+        harness.coordinator.tableViewContentSizeDidChange(
+            harness.tableView,
+            oldSize: oldDelayedSize,
+            newSize: newDelayedSize
+        )
+        RunLoop.main.run(until: Date().addingTimeInterval(0.35))
+        harness.tableView.layoutIfNeeded()
+
+        XCTAssertLessThanOrEqual(distanceFromBottom(harness.tableView), 170)
+    }
+
+    @MainActor
     func testCoordinatorPreservesVisibleAnchorWhenEarlierRowsArePrepended() throws {
         let harness = try makeCoordinatorHarness()
         let rows = TranscriptSurfaceRows.make(
@@ -1083,6 +1222,12 @@ final class TranscriptSurfaceTests: XCTestCase {
                 ]
             )
         }
+    }
+
+    private func paragraphText(count: Int) -> String {
+        (1...count)
+            .map { "Paragraph \($0). This paragraph has enough text to wrap across multiple lines while the streaming response grows." }
+            .joined(separator: "\n\n")
     }
 
     #if os(iOS)
