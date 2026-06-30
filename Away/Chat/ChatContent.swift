@@ -78,20 +78,31 @@ struct ToolActivityGroup: Identifiable, Equatable, Sendable {
     var tools: [ToolActivity]
     var isExpanded: Bool
 
-    var title: String {
-        let stepCount = max(firstChainSummary?.count ?? tools.count, tools.count)
-        let stepLabel = stepCount == 1 ? "step" : "steps"
-
+    var compactTitle: String {
         if aggregateStatus == "in_progress" || aggregateStatus == "pending" {
-            return "working through \(stepCount) \(stepLabel)"
+            return "working through"
         }
 
         if let summary = firstChainSummary?.summary.trimmingCharacters(in: .whitespacesAndNewlines),
            !summary.isEmpty {
-            return "\(summary) (\(stepCount) \(stepLabel))"
+            return summary
         }
 
-        return "\(fallbackSummaryTitle) (\(stepCount) \(stepLabel))"
+        return fallbackSummaryTitle
+    }
+
+    var countBadgeText: String {
+        "\(stepCount)"
+    }
+
+    var title: String {
+        let stepLabel = stepCount == 1 ? "step" : "steps"
+
+        if aggregateStatus == "in_progress" || aggregateStatus == "pending" {
+            return "\(compactTitle) \(stepCount) \(stepLabel)"
+        }
+
+        return "\(compactTitle) (\(stepCount) \(stepLabel))"
     }
 
     var aggregateStatus: String {
@@ -112,6 +123,10 @@ struct ToolActivityGroup: Identifiable, Equatable, Sendable {
 
     private var firstChainSummary: ToolActivityChainSummary? {
         tools.compactMap(\.chainSummary).first
+    }
+
+    private var stepCount: Int {
+        max(firstChainSummary?.count ?? tools.count, tools.count)
     }
 
     private var fallbackSummaryTitle: String {

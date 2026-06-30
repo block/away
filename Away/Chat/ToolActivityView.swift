@@ -28,11 +28,11 @@ struct ToolActivityGroupView: View {
                     .rotationEffect(.degrees(group.isExpanded ? 90 : 0))
                     .frame(width: 16, height: 16)
                 ToolStatusSymbol(status: group.aggregateStatus)
-                Text(group.title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .contentTransition(.opacity)
+
+                SlidingToolGroupTitleText(text: group.compactTitle)
+
+                ToolGroupCountPill(count: group.countBadgeText)
+
                 Spacer(minLength: 8)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -43,6 +43,53 @@ struct ToolActivityGroupView: View {
         .accessibilityValue(group.isExpanded ? "Expanded" : "Collapsed")
         .animation(.snappy(duration: 0.22), value: group.isExpanded)
         .animation(.snappy(duration: 0.22), value: group.title)
+    }
+}
+
+private struct SlidingToolGroupTitleText: View {
+    let text: String
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Text(text)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .id(text)
+                .transition(
+                    .asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    )
+                )
+        }
+        .clipped()
+    }
+}
+
+private struct ToolGroupCountPill: View {
+    let count: String
+
+    var body: some View {
+        Text(count)
+            .font(.caption2.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .contentTransition(.numericText())
+            .frame(minWidth: 20, minHeight: 18)
+            .padding(.horizontal, 5)
+            .background(
+                Capsule()
+                    .fill(Color.secondary.opacity(0.14))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.secondary.opacity(0.10), lineWidth: 0.5)
+            )
+            .accessibilityHidden(true)
+            .animation(.snappy(duration: 0.22), value: count)
     }
 }
 
