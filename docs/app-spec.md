@@ -30,9 +30,11 @@ goose acp
 
 The app uses an `ACPTransport` abstraction so session and chat UI are not tied to a concrete transport. Supported prototype transports are:
 
-- SSH stdio, the default demo path.
-- SSH-forwarded WebSocket, retained as a legacy debug path.
-- Direct WebSocket, retained as a legacy local development shortcut.
+- SSH stdio, the default and only supported demo/manual validation path.
+
+The app must not fall back to direct WebSocket or SSH-forwarded WebSocket when SSH stdio fails. Configuration, authentication, and connection failures should surface the root cause so the demo environment can be fixed.
+
+For simulator relaunch, explicit non-secret `AWAY_*` SSH stdio settings may be persisted in user defaults, while SSH passwords and private-key material must be persisted in the app keychain. Stale WebSocket demo settings should fail with an explicit reset/relaunch message instead of selecting a WebSocket transport.
 
 The app speaks JSON-RPC 2.0 ACP messages over the selected transport. The core ACP surface is:
 

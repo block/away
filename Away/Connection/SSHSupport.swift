@@ -5,9 +5,7 @@ import NIOSSH
 
 enum SSHTransportError: LocalizedError {
     case missingCommand
-    case unsupportedForwardedScheme(String)
-    case missingRemoteHost(URL)
-    case missingRemotePort(URL)
+    case connectionFailed(host: String, port: Int, underlying: String)
     case invalidChannelType
     case invalidData
     case authenticationUnavailable
@@ -16,12 +14,8 @@ enum SSHTransportError: LocalizedError {
         switch self {
         case .missingCommand:
             return "SSH stdio transport requires a Goose ACP stdio command."
-        case .unsupportedForwardedScheme(let scheme):
-            return "SSH-forwarded WebSocket supports ws:// URLs for the local forwarded demo path, not \(scheme)://."
-        case .missingRemoteHost(let url):
-            return "SSH-forwarded WebSocket URL is missing a remote host: \(url.absoluteString)."
-        case .missingRemotePort(let url):
-            return "SSH-forwarded WebSocket URL is missing a remote port: \(url.absoluteString)."
+        case .connectionFailed(let host, let port, let underlying):
+            return "SSH stdio failed to connect to \(host):\(port). Check AWAY_SSH_HOST, AWAY_SSH_PORT, and that the local sshd is running. Underlying error: \(underlying)"
         case .invalidChannelType:
             return "SSH opened an unexpected channel type."
         case .invalidData:
@@ -143,7 +137,16 @@ final class SSHClientConnection: @unchecked Sendable {
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
             .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
 
-        let channel = try await bootstrap.connect(host: config.host, port: config.port).asyncValue()
+        let channel: Channel
+        do {
+            channel = try await bootstrap.connect(host: config.host, port: config.port).asyncValue()
+        } catch {
+            throw SSHTransportError.connectionFailed(
+                host: config.host,
+                port: config.port,
+                underlying: error.localizedDescription
+            )
+        }
         self.channel = channel
         return channel
     }
@@ -227,193 +230,6 @@ final class SSHLineChannelHandler: ChannelDuplexHandler {
                 onLine(line)
             }
         }
-    }
-}
-
-final class SSHByteBufferWrapperHandler: ChannelDuplexHandler {
-    typealias InboundIn = SSHChannelData
-    typealias InboundOut = ByteBuffer
-    typealias OutboundIn = ByteBuffer
-    typealias OutboundOut = SSHChannelData
-
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        let data = unwrapInboundIn(data)
-        guard case .channel = data.type, case .byteBuffer(let buffer) = data.data else {
-            context.fireErrorCaught(SSHTransportError.invalidData)
-            return
-        }
-        context.fireChannelRead(wrapInboundOut(buffer))
-    }
-
-    func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
-        let buffer = unwrapOutboundIn(data)
-        let wrapped = SSHChannelData(type: .channel, data: .byteBuffer(buffer))
-        context.write(wrapOutboundOut(wrapped), promise: promise)
-    }
-}
-
-final class NIOGlueHandler {
-    private var partner: NIOGlueHandler?
-    private var context: ChannelHandlerContext?
-    private var pendingRead = false
-
-    private init() {}
-
-    static func matchedPair() -> (NIOGlueHandler, NIOGlueHandler) {
-        let first = NIOGlueHandler()
-        let second = NIOGlueHandler()
-        first.partner = second
-        second.partner = first
-        return (first, second)
-    }
-
-    private var partnerWritable: Bool {
-        context?.channel.isWritable ?? false
-    }
-
-    private func partnerWrite(_ data: NIOAny) {
-        context?.write(data, promise: nil)
-    }
-
-    private func partnerFlush() {
-        context?.flush()
-    }
-
-    private func partnerWriteEOF() {
-        context?.close(mode: .output, promise: nil)
-    }
-
-    private func partnerCloseFull() {
-        context?.close(promise: nil)
-    }
-
-    private func partnerBecameWritable() {
-        if pendingRead {
-            pendingRead = false
-            context?.read()
-        }
-    }
-}
-
-extension NIOGlueHandler: ChannelDuplexHandler {
-    typealias InboundIn = NIOAny
-    typealias OutboundIn = NIOAny
-    typealias OutboundOut = NIOAny
-
-    func handlerAdded(context: ChannelHandlerContext) {
-        self.context = context
-        if context.channel.isWritable {
-            partner?.partnerBecameWritable()
-        }
-    }
-
-    func handlerRemoved(context: ChannelHandlerContext) {
-        self.context = nil
-        self.partner = nil
-    }
-
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        partner?.partnerWrite(data)
-    }
-
-    func channelReadComplete(context: ChannelHandlerContext) {
-        partner?.partnerFlush()
-    }
-
-    func channelInactive(context: ChannelHandlerContext) {
-        partner?.partnerCloseFull()
-    }
-
-    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
-        if let event = event as? ChannelEvent, case .inputClosed = event {
-            partner?.partnerWriteEOF()
-            return
-        }
-        context.fireUserInboundEventTriggered(event)
-    }
-
-    func errorCaught(context: ChannelHandlerContext, error: Error) {
-        partner?.partnerCloseFull()
-    }
-
-    func channelWritabilityChanged(context: ChannelHandlerContext) {
-        if context.channel.isWritable {
-            partner?.partnerBecameWritable()
-        }
-    }
-
-    func read(context: ChannelHandlerContext) {
-        if let partner, partner.partnerWritable {
-            context.read()
-        } else {
-            pendingRead = true
-        }
-    }
-}
-
-final class SSHLocalPortForwarder: @unchecked Sendable {
-    private let connection: SSHClientConnection
-    private let remoteHost: String
-    private let remotePort: Int
-    private let bindHost: String
-    private var serverChannel: Channel?
-
-    init(config: SSHConfig, remoteHost: String, remotePort: Int, bindHost: String = "127.0.0.1") {
-        self.connection = SSHClientConnection(config: config)
-        self.remoteHost = remoteHost
-        self.remotePort = remotePort
-        self.bindHost = bindHost
-    }
-
-    func start() async throws -> Int {
-        let sshChannel = try await connection.connect()
-        let server = try await ServerBootstrap(group: sshChannel.eventLoop, childGroup: sshChannel.eventLoop)
-            .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-            .childChannelInitializer { [remoteHost, remotePort] inboundChannel in
-                sshChannel.pipeline.handler(type: NIOSSHHandler.self).flatMap { sshHandler in
-                    let promise = inboundChannel.eventLoop.makePromise(of: Channel.self)
-                    let originatorAddress: SocketAddress
-                    do {
-                        originatorAddress = try inboundChannel.remoteAddress
-                            ?? SocketAddress(ipAddress: "127.0.0.1", port: 0)
-                    } catch {
-                        return inboundChannel.eventLoop.makeFailedFuture(error)
-                    }
-                    let directTCPIP = SSHChannelType.DirectTCPIP(
-                        targetHost: remoteHost,
-                        targetPort: remotePort,
-                        originatorAddress: originatorAddress
-                    )
-                    sshHandler.createChannel(promise, channelType: .directTCPIP(directTCPIP)) { childChannel, channelType in
-                        guard case .directTCPIP = channelType else {
-                            return childChannel.eventLoop.makeFailedFuture(SSHTransportError.invalidChannelType)
-                        }
-
-                        return childChannel.eventLoop.makeCompletedFuture {
-                            let (ours, theirs) = NIOGlueHandler.matchedPair()
-                            try childChannel.pipeline.syncOperations.addHandler(SSHByteBufferWrapperHandler())
-                            try childChannel.pipeline.syncOperations.addHandler(ours)
-                            try childChannel.pipeline.syncOperations.addHandler(SSHErrorHandler())
-                            try inboundChannel.pipeline.syncOperations.addHandler(theirs)
-                            try inboundChannel.pipeline.syncOperations.addHandler(SSHErrorHandler())
-                        }
-                    }
-                    return promise.futureResult.map { _ in }
-                }
-            }
-            .bind(host: bindHost, port: 0)
-            .asyncValue()
-
-        serverChannel = server
-        return server.localAddress?.port ?? 0
-    }
-
-    func close() async {
-        if let serverChannel {
-            try? await serverChannel.close().asyncValue()
-        }
-        serverChannel = nil
-        await connection.close()
     }
 }
 

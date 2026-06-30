@@ -91,7 +91,9 @@ When the disposable local `sshd` is not already running, create it outside the r
 
 After one successful environment-backed launch, the prototype persists those demo settings for that Simulator. A later manual relaunch can reuse them, but a new clean Simulator cannot.
 
-If the thread is validating session/export/UI behavior and SSH setup is not the thing under test, the legacy direct-WebSocket shortcut may be used only as a clearly documented debug path. In that case, launch with `AWAY_TRANSPORT=direct-websocket` and call out in the handoff that validation used direct WebSocket rather than the default SSH stdio path. Do not treat a successful direct-WebSocket run as validation of the default SSH stdio path.
+Use a throwaway demo keypair. The prototype persists explicit non-secret `AWAY_*` settings in simulator user defaults and SSH passwords or private-key material in the app keychain so manual relaunch can work without launch environment variables.
+
+Direct WebSocket and SSH-forwarded WebSocket are not supported validation paths. If SSH stdio fails after configuration is loaded, fix the reported SSH connection, authentication, port, key, or command issue. The app intentionally does not retry over WebSocket.
 
 ## Handoff Requirements
 

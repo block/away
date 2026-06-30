@@ -19,11 +19,9 @@
 		A00000000000000000000010 /* ACPNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000110 /* ACPNotification.swift */; };
 		A00000000000000000000011 /* ACPRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000111 /* ACPRequest.swift */; };
 		A00000000000000000000012 /* ACPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000112 /* ACPTransport.swift */; };
-		A00000000000000000000013 /* DirectWebSocketTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000113 /* DirectWebSocketTransport.swift */; };
 		A00000000000000000000014 /* RemoteConnectionConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000114 /* RemoteConnectionConfig.swift */; };
 		A00000000000000000000015 /* RemoteConnectionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000115 /* RemoteConnectionProvider.swift */; };
 		A00000000000000000000016 /* SSHStdioTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000116 /* SSHStdioTransport.swift */; };
-		A00000000000000000000017 /* SSHForwardedWebSocketTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000117 /* SSHForwardedWebSocketTransport.swift */; };
 		A00000000000000000000018 /* ACPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000118 /* ACPClient.swift */; };
 		A00000000000000000000019 /* SessionSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000119 /* SessionSummary.swift */; };
 		A00000000000000000000020 /* SessionListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000120 /* SessionListModel.swift */; };
@@ -51,7 +49,6 @@
 		B00000000000000000000002 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000201 /* NIOSSH */; };
 		B00000000000000000000003 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000202 /* NIOCore */; };
 		B00000000000000000000004 /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000203 /* NIOPosix */; };
-		B00000000000000000000005 /* SSHForwardedWebSocketEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000102 /* SSHForwardedWebSocketEndpointTests.swift */; };
 		B00000000000000000000006 /* SSHStdioTransportIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000103 /* SSHStdioTransportIntegrationTests.swift */; };
 		B00000000000000000000007 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000201 /* NIOSSH */; };
 		B00000000000000000000008 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000202 /* NIOCore */; };
@@ -111,11 +108,9 @@
 		A00000000000000000000110 /* ACPNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPNotification.swift; sourceTree = "<group>"; };
 		A00000000000000000000111 /* ACPRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPRequest.swift; sourceTree = "<group>"; };
 		A00000000000000000000112 /* ACPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPTransport.swift; sourceTree = "<group>"; };
-		A00000000000000000000113 /* DirectWebSocketTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectWebSocketTransport.swift; sourceTree = "<group>"; };
 		A00000000000000000000114 /* RemoteConnectionConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConnectionConfig.swift; sourceTree = "<group>"; };
 		A00000000000000000000115 /* RemoteConnectionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConnectionProvider.swift; sourceTree = "<group>"; };
 		A00000000000000000000116 /* SSHStdioTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHStdioTransport.swift; sourceTree = "<group>"; };
-		A00000000000000000000117 /* SSHForwardedWebSocketTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHForwardedWebSocketTransport.swift; sourceTree = "<group>"; };
 		A00000000000000000000118 /* ACPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ACPClient.swift; sourceTree = "<group>"; };
 		A00000000000000000000119 /* SessionSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSummary.swift; sourceTree = "<group>"; };
 		A00000000000000000000120 /* SessionListModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListModel.swift; sourceTree = "<group>"; };
@@ -143,7 +138,6 @@
 		A00000000000000000000142 /* NotificationContentExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationContentExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000101 /* ContinuedProcessingDemoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinuedProcessingDemoService.swift; sourceTree = "<group>"; };
 		B00000000000000000000101 /* SSHSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHSupport.swift; sourceTree = "<group>"; };
-		B00000000000000000000102 /* SSHForwardedWebSocketEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHForwardedWebSocketEndpointTests.swift; sourceTree = "<group>"; };
 		B00000000000000000000103 /* SSHStdioTransportIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHStdioTransportIntegrationTests.swift; sourceTree = "<group>"; };
 		D00000000000000000000101 /* ExportedSessionSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportedSessionSnapshot.swift; sourceTree = "<group>"; };
 		D00000000000000000000102 /* ExportedSessionSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportedSessionSnapshotTests.swift; sourceTree = "<group>"; };
@@ -187,13 +181,13 @@
 		};
 		A00000000000000000000162 /* App */ = {isa = PBXGroup; children = (A00000000000000000000100, A00000000000000000000101, A00000000000000000000102, A00000000000000000000103, A00000000000000000000104, A00000000000000000000105); path = App; sourceTree = "<group>"; };
 		A00000000000000000000163 /* ACP */ = {isa = PBXGroup; children = (A00000000000000000000108, A00000000000000000000109, A00000000000000000000110, A00000000000000000000111, A00000000000000000000118); path = ACP; sourceTree = "<group>"; };
-		A00000000000000000000164 /* Connection */ = {isa = PBXGroup; children = (A00000000000000000000112, A00000000000000000000113, A00000000000000000000114, A00000000000000000000115, A00000000000000000000116, A00000000000000000000117, B00000000000000000000101); path = Connection; sourceTree = "<group>"; };
+		A00000000000000000000164 /* Connection */ = {isa = PBXGroup; children = (A00000000000000000000112, A00000000000000000000114, A00000000000000000000115, A00000000000000000000116, B00000000000000000000101); path = Connection; sourceTree = "<group>"; };
 		A00000000000000000000165 /* Sessions */ = {isa = PBXGroup; children = (A00000000000000000000119, A00000000000000000000120, A00000000000000000000121, A00000000000000000000122, A00000000000000000000137); path = Sessions; sourceTree = "<group>"; };
 		A00000000000000000000166 /* Chat */ = {isa = PBXGroup; children = (A00000000000000000000123, A00000000000000000000124, A00000000000000000000125, D00000000000000000000101, A00000000000000000000126, A00000000000000000000127, E00000000000000000000101, E00000000000000000000102, A00000000000000000000128, A00000000000000000000129, A00000000000000000000130); path = Chat; sourceTree = "<group>"; };
 		A00000000000000000000167 /* Notifications */ = {isa = PBXGroup; children = (A00000000000000000000131); path = Notifications; sourceTree = "<group>"; };
 		A00000000000000000000168 /* Background */ = {isa = PBXGroup; children = (A00000000000000000000132, C00000000000000000000101); path = Background; sourceTree = "<group>"; };
 		A00000000000000000000169 /* NotificationContentExtension */ = {isa = PBXGroup; children = (A00000000000000000000136, A00000000000000000000133); path = NotificationContentExtension; sourceTree = "<group>"; };
-		A00000000000000000000170 /* AwayTests */ = {isa = PBXGroup; children = (A00000000000000000000134, D00000000000000000000102, E00000000000000000000103, A00000000000000000000135, F00000000000000000000101, A00000000000000000000138, A00000000000000000000139, B00000000000000000000102, B00000000000000000000103); path = AwayTests; sourceTree = "<group>"; };
+		A00000000000000000000170 /* AwayTests */ = {isa = PBXGroup; children = (A00000000000000000000134, D00000000000000000000102, E00000000000000000000103, A00000000000000000000135, F00000000000000000000101, A00000000000000000000138, A00000000000000000000139, B00000000000000000000103); path = AwayTests; sourceTree = "<group>"; };
 		A00000000000000000000173 /* Support */ = {isa = PBXGroup; children = (A00000000000000000000106, A00000000000000000000107); path = Support; sourceTree = "<group>"; };
 		A00000000000000000000180 /* Products */ = {isa = PBXGroup; children = (A00000000000000000000140, A00000000000000000000141, A00000000000000000000142); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
@@ -312,11 +306,9 @@
 				A00000000000000000000010,
 				A00000000000000000000011,
 				A00000000000000000000012,
-				A00000000000000000000013,
 				A00000000000000000000014,
 				A00000000000000000000015,
 				A00000000000000000000016,
-				A00000000000000000000017,
 				B00000000000000000000001,
 				A00000000000000000000018,
 				A00000000000000000000019,
@@ -341,7 +333,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A00000000000000000000191 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000034, D00000000000000000000002, E00000000000000000000003, A00000000000000000000035, F00000000000000000000001, A00000000000000000000038, A00000000000000000000039, B00000000000000000000005, B00000000000000000000006); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000191 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000034, D00000000000000000000002, E00000000000000000000003, A00000000000000000000035, F00000000000000000000001, A00000000000000000000038, A00000000000000000000039, B00000000000000000000006); runOnlyForDeploymentPostprocessing = 0; };
 		A00000000000000000000192 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000033); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

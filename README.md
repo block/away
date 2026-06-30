@@ -29,18 +29,19 @@ prototype-only:
 ```text
 AWAY_TRANSPORT=ssh-stdio
 AWAY_SSH_HOST=127.0.0.1
-AWAY_SSH_PORT=22
+AWAY_SSH_PORT=2222
 AWAY_SSH_USERNAME=<user>
-AWAY_SSH_PASSWORD=<password>
 AWAY_SSH_COMMAND=goose acp
+AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64=<base64 raw P-256 private key>
 ```
 
-For local protocol development, a direct WebSocket shortcut is also available:
-
-```text
-AWAY_TRANSPORT=direct-websocket
-AWAY_ACP_URL=ws://127.0.0.1:32845/acp?token=local-secret
-```
+SSH stdio is the only supported local demo and validation transport. If stdio connection
+configuration fails, fix the SSH launch settings or simulator app data instead of using a
+WebSocket fallback. A successful explicit launch persists the `AWAY_*` demo settings in
+simulator user defaults so a later manual relaunch from Simulator can reconnect without the launch
+environment. SSH passwords and private-key material are stored in the app keychain instead of user
+defaults, but they are still demo credentials; use a throwaway keypair and reset the simulator when
+you need to purge persisted secrets completely.
 
 ## Test
 
