@@ -1,12 +1,12 @@
-# Goose iOS Remote App Spec
+# Away App Spec
 
 This is the living behavior spec for the prototype. Update it when product behavior, demo scope, or validation expectations change.
 
 ## Product Scope
 
-Goose iOS Remote is a standalone iOS 26+ SwiftUI prototype for remotely controlling existing Goose sessions over ACP Plus.
+Away is a standalone iOS 26+ SwiftUI prototype for remotely controlling existing Goose sessions over ACP Plus.
 
-The remote machine only needs a Goose ACP server. It does not need Goose2 or Catch. The prototype may reference Catch and Goose2 source while being built, but the app remains a separate codebase.
+The remote machine only needs a Goose ACP server. The prototype may reference existing Goose client behavior while being built, but the app remains a separate codebase.
 
 ## Core Behavior
 
@@ -17,7 +17,7 @@ The remote machine only needs a Goose ACP server. It does not need Goose2 or Cat
 - The app sends user prompts to the active session.
 - The app renders a scrollable chat transcript with user and assistant messages.
 - Sending and receiving messages should feel animated and responsive.
-- Tool calls render as compact inline activity rows, not full Goose2-style rich cards.
+- Tool calls render as compact inline activity rows, not full desktop-client-style rich cards.
 - No local persistence is required for sessions, transcripts, or drafts.
 
 ## ACP Transport
@@ -31,8 +31,8 @@ goose acp
 The app uses an `ACPTransport` abstraction so session and chat UI are not tied to a concrete transport. Supported prototype transports are:
 
 - SSH stdio, the default demo path.
-- SSH-forwarded WebSocket, retained as a fallback path.
-- Direct WebSocket, retained as a local development shortcut.
+- SSH-forwarded WebSocket, retained as a legacy debug path.
+- Direct WebSocket, retained as a legacy local development shortcut.
 
 The app speaks JSON-RPC 2.0 ACP messages over the selected transport. The core ACP surface is:
 
@@ -61,7 +61,7 @@ The first screen is the usable session list, not a landing page.
 
 Session list:
 
-- Title is `Goose`.
+- Title is `Away`.
 - Keep connection state understated, expanding error details only when connection fails.
 - Preserve refresh and demo background keepalive controls as quiet header actions without adding session creation or server switching UI.
 - Show recent sessions as a clean title-and-timestamp list.
@@ -115,5 +115,5 @@ Do not require physical-device testing for prototype completion.
 - Session archive, rename, delete, fork, and search.
 - APNS push notifications.
 - Offline mode and complex reconnect queues.
-- Shared-library extraction from Catch or Goose2.
+- Shared-library extraction from other clients.
 - Launching the Goose server from iOS.

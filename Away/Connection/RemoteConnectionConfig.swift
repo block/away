@@ -33,9 +33,9 @@ struct RemoteConnectionConfig: Sendable {
     }
 
     private static func makeDemoConfig(environment: [String: String]) -> RemoteConnectionConfig {
-        let defaultCWD = environment["GOOSE_REMOTE_DEFAULT_CWD"] ?? "~"
-        let keepaliveEnabled = environment["GOOSE_REMOTE_BACKGROUND_KEEPALIVE"] == "1"
-        let mode = environment["GOOSE_REMOTE_TRANSPORT"].map(normalizeMode) ?? "sshstdio"
+        let defaultCWD = environment["AWAY_DEFAULT_CWD"] ?? "~"
+        let keepaliveEnabled = environment["AWAY_BACKGROUND_KEEPALIVE"] == "1"
+        let mode = environment["AWAY_TRANSPORT"].map(normalizeMode) ?? "sshstdio"
 
         switch mode {
         case "sshstdio":
@@ -46,9 +46,9 @@ struct RemoteConnectionConfig: Sendable {
             )
 
         case "sshforwardedwebsocket":
-            let rawURL = environment["GOOSE_REMOTE_REMOTE_ACP_URL"] ?? defaultDirectWebSocketURL
+            let rawURL = environment["AWAY_REMOTE_ACP_URL"] ?? defaultDirectWebSocketURL
             guard let remoteACPURL = URL(string: rawURL) else {
-                preconditionFailure("GOOSE_REMOTE_REMOTE_ACP_URL is invalid: \(rawURL)")
+                preconditionFailure("AWAY_REMOTE_ACP_URL is invalid: \(rawURL)")
             }
             return RemoteConnectionConfig(
                 mode: .sshForwardedWebSocket(makeSSHConfig(environment: environment), remoteACPURL: remoteACPURL),
@@ -57,9 +57,9 @@ struct RemoteConnectionConfig: Sendable {
             )
 
         case "directwebsocket", "websocket":
-            let rawURL = environment["GOOSE_REMOTE_ACP_URL"] ?? defaultDirectWebSocketURL
+            let rawURL = environment["AWAY_ACP_URL"] ?? defaultDirectWebSocketURL
             guard let url = URL(string: rawURL) else {
-                preconditionFailure("GOOSE_REMOTE_ACP_URL is invalid: \(rawURL)")
+                preconditionFailure("AWAY_ACP_URL is invalid: \(rawURL)")
             }
             return RemoteConnectionConfig(
                 mode: .directWebSocket(url),
@@ -68,7 +68,7 @@ struct RemoteConnectionConfig: Sendable {
             )
 
         default:
-            preconditionFailure("Unsupported GOOSE_REMOTE_TRANSPORT: \(environment["GOOSE_REMOTE_TRANSPORT"] ?? mode)")
+            preconditionFailure("Unsupported AWAY_TRANSPORT: \(environment["AWAY_TRANSPORT"] ?? mode)")
         }
     }
 
@@ -79,10 +79,10 @@ struct RemoteConnectionConfig: Sendable {
     }
 
     private static func makeSSHConfig(environment: [String: String]) -> SSHConfig {
-        let host = environment["GOOSE_REMOTE_SSH_HOST"] ?? "127.0.0.1"
-        let port = environment["GOOSE_REMOTE_SSH_PORT"].flatMap(Int.init) ?? 22
-        let username = environment["GOOSE_REMOTE_SSH_USERNAME"] ?? NSUserName()
-        let command = environment["GOOSE_REMOTE_SSH_COMMAND"] ?? "goose acp"
+        let host = environment["AWAY_SSH_HOST"] ?? "127.0.0.1"
+        let port = environment["AWAY_SSH_PORT"].flatMap(Int.init) ?? 22
+        let username = environment["AWAY_SSH_USERNAME"] ?? NSUserName()
+        let command = environment["AWAY_SSH_COMMAND"] ?? "goose acp"
 
         return SSHConfig(
             host: host,
@@ -94,25 +94,25 @@ struct RemoteConnectionConfig: Sendable {
     }
 
     private static func makeSSHAuthentication(environment: [String: String]) -> SSHAuthentication {
-        if let password = environment["GOOSE_REMOTE_SSH_PASSWORD"] {
+        if let password = environment["AWAY_SSH_PASSWORD"] {
             return .password(password)
         }
 
-        if let pemBase64 = environment["GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_PEM_BASE64"] {
+        if let pemBase64 = environment["AWAY_SSH_P256_PRIVATE_KEY_PEM_BASE64"] {
             guard let data = Data(base64Encoded: pemBase64),
                   let pem = String(data: data, encoding: .utf8),
                   let key = try? P256.Signing.PrivateKey(pemRepresentation: pem)
             else {
-                preconditionFailure("GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_PEM_BASE64 is not a valid P-256 PEM key")
+                preconditionFailure("AWAY_SSH_P256_PRIVATE_KEY_PEM_BASE64 is not a valid P-256 PEM key")
             }
             return .privateKey(NIOSSHPrivateKey(p256Key: key))
         }
 
-        if let rawBase64 = environment["GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64"] {
+        if let rawBase64 = environment["AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64"] {
             guard let data = Data(base64Encoded: rawBase64),
                   let key = try? P256.Signing.PrivateKey(rawRepresentation: data)
             else {
-                preconditionFailure("GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64 is not a valid P-256 raw key")
+                preconditionFailure("AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64 is not a valid P-256 raw key")
             }
             return .privateKey(NIOSSHPrivateKey(p256Key: key))
         }
@@ -159,20 +159,20 @@ enum SSHAuthentication: Sendable {
 struct DemoConnectionSettingsStore: @unchecked Sendable {
     static let standard = DemoConnectionSettingsStore(defaults: .standard)
 
-    private static let prefix = "GooseRemote.demoConnection."
+    private static let prefix = "Away.demoConnection."
     private static let keys = [
-        "GOOSE_REMOTE_TRANSPORT",
-        "GOOSE_REMOTE_ACP_URL",
-        "GOOSE_REMOTE_REMOTE_ACP_URL",
-        "GOOSE_REMOTE_DEFAULT_CWD",
-        "GOOSE_REMOTE_BACKGROUND_KEEPALIVE",
-        "GOOSE_REMOTE_SSH_HOST",
-        "GOOSE_REMOTE_SSH_PORT",
-        "GOOSE_REMOTE_SSH_USERNAME",
-        "GOOSE_REMOTE_SSH_PASSWORD",
-        "GOOSE_REMOTE_SSH_COMMAND",
-        "GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_PEM_BASE64",
-        "GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64"
+        "AWAY_TRANSPORT",
+        "AWAY_ACP_URL",
+        "AWAY_REMOTE_ACP_URL",
+        "AWAY_DEFAULT_CWD",
+        "AWAY_BACKGROUND_KEEPALIVE",
+        "AWAY_SSH_HOST",
+        "AWAY_SSH_PORT",
+        "AWAY_SSH_USERNAME",
+        "AWAY_SSH_PASSWORD",
+        "AWAY_SSH_COMMAND",
+        "AWAY_SSH_P256_PRIVATE_KEY_PEM_BASE64",
+        "AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64"
     ]
 
     private let defaults: UserDefaults
@@ -186,8 +186,8 @@ struct DemoConnectionSettingsStore: @unchecked Sendable {
         for (key, value) in environment where Self.keys.contains(key) {
             merged[key] = value
         }
-        if environmentContainsSSHSettings(environment), environment["GOOSE_REMOTE_TRANSPORT"] == nil {
-            merged["GOOSE_REMOTE_TRANSPORT"] = "ssh-stdio"
+        if environmentContainsSSHSettings(environment), environment["AWAY_TRANSPORT"] == nil {
+            merged["AWAY_TRANSPORT"] = "ssh-stdio"
         }
         return merged
     }
@@ -200,9 +200,9 @@ struct DemoConnectionSettingsStore: @unchecked Sendable {
             defaults.set(value, forKey: storageKey(key))
         }
 
-        if environmentContainsSSHSettings(environment), environment["GOOSE_REMOTE_TRANSPORT"] == nil {
+        if environmentContainsSSHSettings(environment), environment["AWAY_TRANSPORT"] == nil {
             hasAnyExplicitSetting = true
-            defaults.set("ssh-stdio", forKey: storageKey("GOOSE_REMOTE_TRANSPORT"))
+            defaults.set("ssh-stdio", forKey: storageKey("AWAY_TRANSPORT"))
         }
 
         if hasAnyExplicitSetting {
@@ -228,7 +228,7 @@ struct DemoConnectionSettingsStore: @unchecked Sendable {
 
     private func environmentContainsSSHSettings(_ environment: [String: String]) -> Bool {
         environment.keys.contains { key in
-            key.hasPrefix("GOOSE_REMOTE_SSH_")
+            key.hasPrefix("AWAY_SSH_")
         }
     }
 

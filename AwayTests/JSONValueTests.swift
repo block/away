@@ -1,5 +1,5 @@
 import XCTest
-@testable import GooseRemote
+@testable import Away
 
 final class JSONValueTests: XCTestCase {
     func testDecodesSessionListShape() throws {
@@ -56,8 +56,8 @@ final class JSONValueTests: XCTestCase {
 
     func testDemoConfigReadsDirectWebSocketEnvironment() {
         let config = RemoteConnectionConfig.demo(environment: [
-            "GOOSE_REMOTE_TRANSPORT": "direct-websocket",
-            "GOOSE_REMOTE_ACP_URL": "ws://example.local:32845/acp?token=test"
+            "AWAY_TRANSPORT": "direct-websocket",
+            "AWAY_ACP_URL": "ws://example.local:32845/acp?token=test"
         ])
 
         switch config.mode {
@@ -70,14 +70,14 @@ final class JSONValueTests: XCTestCase {
 
     func testDemoConfigReadsSSHStdioEnvironment() {
         let config = RemoteConnectionConfig.demo(environment: [
-            "GOOSE_REMOTE_TRANSPORT": "ssh-stdio",
-            "GOOSE_REMOTE_SSH_HOST": "localhost",
-            "GOOSE_REMOTE_SSH_PORT": "2222",
-            "GOOSE_REMOTE_SSH_USERNAME": "demo",
-            "GOOSE_REMOTE_SSH_PASSWORD": "secret",
-            "GOOSE_REMOTE_SSH_COMMAND": "goose acp",
-            "GOOSE_REMOTE_DEFAULT_CWD": "/tmp/project",
-            "GOOSE_REMOTE_BACKGROUND_KEEPALIVE": "1"
+            "AWAY_TRANSPORT": "ssh-stdio",
+            "AWAY_SSH_HOST": "localhost",
+            "AWAY_SSH_PORT": "2222",
+            "AWAY_SSH_USERNAME": "demo",
+            "AWAY_SSH_PASSWORD": "secret",
+            "AWAY_SSH_COMMAND": "goose acp",
+            "AWAY_DEFAULT_CWD": "/tmp/project",
+            "AWAY_BACKGROUND_KEEPALIVE": "1"
         ])
 
         switch config.mode {
@@ -100,7 +100,7 @@ final class JSONValueTests: XCTestCase {
     }
 
     func testDemoConfigPersistsSSHEnvironmentForManualRelaunch() throws {
-        let suiteName = "GooseRemoteTests.\(UUID().uuidString)"
+        let suiteName = "AwayTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         let store = DemoConnectionSettingsStore(defaults: defaults)
         defer {
@@ -110,11 +110,11 @@ final class JSONValueTests: XCTestCase {
 
         _ = RemoteConnectionConfig.demo(
             environment: [
-                "GOOSE_REMOTE_SSH_HOST": "127.0.0.1",
-                "GOOSE_REMOTE_SSH_PORT": "2222",
-                "GOOSE_REMOTE_SSH_USERNAME": "demo",
-                "GOOSE_REMOTE_SSH_PASSWORD": "secret",
-                "GOOSE_REMOTE_SSH_COMMAND": "goose acp"
+                "AWAY_SSH_HOST": "127.0.0.1",
+                "AWAY_SSH_PORT": "2222",
+                "AWAY_SSH_USERNAME": "demo",
+                "AWAY_SSH_PASSWORD": "secret",
+                "AWAY_SSH_COMMAND": "goose acp"
             ],
             settingsStore: store
         )

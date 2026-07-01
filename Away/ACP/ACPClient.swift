@@ -142,8 +142,8 @@ actor ACPClient {
                     ]
                 ],
                 "clientInfo": [
-                    "name": "goose-ios-remote",
-                    "title": "Goose iOS Remote",
+                    "name": "away-ios",
+                    "title": "Away",
                     "version": "1.0.0"
                 ]
             ],

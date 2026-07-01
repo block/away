@@ -29,7 +29,7 @@ final class ContinuedProcessingDemoService {
 
         let request = BGContinuedProcessingTaskRequest(
             identifier: ContinuedProcessingTaskIdentifiers.task,
-            title: "Goose Remote",
+            title: "Away",
             subtitle: "Listening for session updates"
         )
         request.strategy = .queue
@@ -77,7 +77,7 @@ final class ContinuedProcessingDemoService {
 }
 
 enum ContinuedProcessingTaskIdentifiers {
-    static let prefix = "dev.tomb.GooseRemote.continued-processing"
+    static let prefix = "xyz.block.away.continued-processing"
     static let permittedWildcard = "\(prefix).*"
     static let task = "\(prefix).listening"
 }

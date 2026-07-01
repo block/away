@@ -1,6 +1,6 @@
 # Development Workflow
 
-Use this workflow when spawning implementation threads from the main Goose iOS Remote thread.
+Use this workflow when spawning implementation threads from the main Away thread.
 
 ## Spawned Threads
 
@@ -41,15 +41,15 @@ Each implementation thread should use a dedicated Simulator rather than sharing 
 Name simulators:
 
 ```text
-GooseRemote-<feature>-<thread-id-short>
+Away-<feature>-<thread-id-short>
 ```
 
 Examples:
 
 ```text
-GooseRemote-ssh-019f1234
-GooseRemote-notifications-019f5678
-GooseRemote-transcript-019f9999
+Away-ssh-019f1234
+Away-notifications-019f5678
+Away-transcript-019f9999
 ```
 
 Use the current preferred iPhone/iOS runtime unless the task requires a different target. The current prototype baseline is an iPhone 17 Pro simulator on iOS 26.x.
@@ -63,8 +63,8 @@ If multiple app variants are ever needed on the same simulator, add a separate b
 The app's default demo transport is SSH stdio, but a clean Simulator has no persisted SSH settings. Setting only:
 
 ```text
-GOOSE_REMOTE_TRANSPORT=ssh-stdio
-GOOSE_REMOTE_SSH_COMMAND=goose acp
+AWAY_TRANSPORT=ssh-stdio
+AWAY_SSH_COMMAND=goose acp
 ```
 
 is not enough. With no saved settings or explicit SSH environment, the app falls back to SSH `127.0.0.1:22` without usable auth, which usually fails with `NIOConnectionError error 1`.
@@ -72,26 +72,26 @@ is not enough. With no saved settings or explicit SSH environment, the app falls
 For SSH stdio validation in a fresh per-thread Simulator, start or reuse the disposable local `sshd` on `127.0.0.1:2222`, then launch with the full connection environment:
 
 ```text
-GOOSE_REMOTE_TRANSPORT=ssh-stdio
-GOOSE_REMOTE_SSH_HOST=127.0.0.1
-GOOSE_REMOTE_SSH_PORT=2222
-GOOSE_REMOTE_SSH_USERNAME=<local username>
-GOOSE_REMOTE_SSH_COMMAND=goose acp
-GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64=<matching raw P-256 private key>
+AWAY_TRANSPORT=ssh-stdio
+AWAY_SSH_HOST=127.0.0.1
+AWAY_SSH_PORT=2222
+AWAY_SSH_USERNAME=<local username>
+AWAY_SSH_COMMAND=goose acp
+AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64=<matching raw P-256 private key>
 ```
 
-The known-good local development target is this localhost `sshd` path. Do not infer a different target from stale simulator defaults or persisted settings such as `GOOSE_REMOTE_SSH_HOST=mini.local`; those values may be leftovers from another run and are not proof that SSH stdio should use that host. If SSH validation fails, first confirm the simulator was launched with the full environment above and that the local `sshd` is listening on `127.0.0.1:2222`.
+The known-good local development target is this localhost `sshd` path. Do not infer a different target from stale simulator defaults or persisted settings from another run; those values are not proof that SSH stdio should use that host. If SSH validation fails, first confirm the simulator was launched with the full environment above and that the local `sshd` is listening on `127.0.0.1:2222`.
 
 When the disposable local `sshd` is not already running, create it outside the repository. A typical setup is:
 
 1. Generate or reuse a P-256 keypair under `/tmp/goose-remote-sshd`.
 2. Add the public key to that temporary server's `authorized_keys`.
 3. Start `/usr/sbin/sshd` with a temporary config that binds only `127.0.0.1`, listens on port `2222`, allows the current local user, and executes normal user commands.
-4. Launch the app with `GOOSE_REMOTE_SSH_P256_PRIVATE_KEY_RAW_BASE64` set to the raw base64 private key that matches the authorized public key.
+4. Launch the app with `AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64` set to the raw base64 private key that matches the authorized public key.
 
 After one successful environment-backed launch, the prototype persists those demo settings for that Simulator. A later manual relaunch can reuse them, but a new clean Simulator cannot.
 
-If the thread is validating session/export/UI behavior and SSH setup is not the thing under test, it may use the direct WebSocket shortcut against a local `goose serve` target instead. In that case, launch with `GOOSE_REMOTE_TRANSPORT=direct-websocket` and call out in the handoff that validation used direct WebSocket rather than the default SSH stdio path. Do not treat a successful direct-WebSocket run as validation of the default SSH stdio path.
+If the thread is validating session/export/UI behavior and SSH setup is not the thing under test, the legacy direct-WebSocket shortcut may be used only as a clearly documented debug path. In that case, launch with `AWAY_TRANSPORT=direct-websocket` and call out in the handoff that validation used direct WebSocket rather than the default SSH stdio path. Do not treat a successful direct-WebSocket run as validation of the default SSH stdio path.
 
 ## Handoff Requirements
 

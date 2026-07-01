@@ -1,5 +1,5 @@
 import XCTest
-@testable import GooseRemote
+@testable import Away
 #if os(iOS)
 import UIKit
 #endif

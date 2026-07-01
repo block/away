@@ -4,7 +4,7 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>dev.tomb.GooseRemote.continued-processing.*</string>
+		<string>xyz.block.away.continued-processing.*</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
@@ -25,9 +25,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Goose Remote can use location as demo-only background execution scaffolding while testing live local notifications.</string>
+	<string>Away can use location as demo-only background execution scaffolding while testing live local notifications.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Goose Remote can use location as demo-only background execution scaffolding while testing live local notifications.</string>
+	<string>Away can use location as demo-only background execution scaffolding while testing live local notifications.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

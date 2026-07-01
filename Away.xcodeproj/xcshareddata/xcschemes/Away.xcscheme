@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A00000000000000000000300"
-               BuildableName = "GooseRemote.app"
-               BlueprintName = "GooseRemote"
-               ReferencedContainer = "container:GooseRemote.xcodeproj">
+               BuildableName = "Away.app"
+               BlueprintName = "Away"
+               ReferencedContainer = "container:Away.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -34,9 +34,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A00000000000000000000301"
-               BuildableName = "GooseRemoteTests.xctest"
-               BlueprintName = "GooseRemoteTests"
-               ReferencedContainer = "container:GooseRemote.xcodeproj">
+               BuildableName = "AwayTests.xctest"
+               BlueprintName = "AwayTests"
+               ReferencedContainer = "container:Away.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -56,9 +56,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A00000000000000000000300"
-            BuildableName = "GooseRemote.app"
-            BlueprintName = "GooseRemote"
-            ReferencedContainer = "container:GooseRemote.xcodeproj">
+            BuildableName = "Away.app"
+            BlueprintName = "Away"
+            ReferencedContainer = "container:Away.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -73,9 +73,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A00000000000000000000300"
-            BuildableName = "GooseRemote.app"
-            BlueprintName = "GooseRemote"
-            ReferencedContainer = "container:GooseRemote.xcodeproj">
+            BuildableName = "Away.app"
+            BlueprintName = "Away"
+            ReferencedContainer = "container:Away.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

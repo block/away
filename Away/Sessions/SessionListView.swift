@@ -219,7 +219,7 @@ private struct ConnectionFailureView: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.primary)
 
-                Text(message ?? "Goose Remote could not reach the configured ACP target.")
+                Text(message ?? "Away could not reach the configured ACP target.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)

@@ -1,8 +1,8 @@
-# Goose iOS Remote Prototype Plan
+# Away Prototype Plan
 
 ## Goal
 
-Build a standalone iOS 26+ prototype that remotely controls existing Goose sessions over ACP Plus. The remote machine should only need a running Goose server; it should not need Goose2/goose-internal or Catch. The v0 app should hardcode its server connection, skip persistence and secure auth, and prove the core session loop:
+Build a standalone iOS 26+ prototype that remotely controls existing Goose sessions over ACP Plus. The remote machine should only need a running Goose server. The v0 app should hardcode its server connection, skip persistence and secure auth, and prove the core session loop:
 
 - list/open existing sessions
 - load transcript history
@@ -16,16 +16,9 @@ When implementation starts, use the [@build-ios-apps](plugin://build-ios-apps@op
 
 ## Reference Findings
 
-### Catch
+This document is historical planning context. It summarizes behavior observed in existing Goose clients and ACP implementations; it should not be treated as a dependency on another repository.
 
-Relevant files:
-
-- `/Users/tomb/Development/catch/Sources/Catch/Services/GooseServeClient.swift`
-- `/Users/tomb/Development/catch/Sources/Catch/Stores/SessionStore.swift`
-- `/Users/tomb/Development/catch/Sources/Catch/Models/Session.swift`
-- `/Users/tomb/Development/catch/Sources/Catch/Views/MainView.swift`
-
-Concepts worth copying into this standalone app:
+Concepts worth preserving in this standalone app:
 
 - JSON-RPC 2.0 over WebSocket using `URLSessionWebSocketTask`.
 - A single client type that owns connection state, request IDs, pending continuations, and notification dispatch.
@@ -34,30 +27,15 @@ Concepts worth copying into this standalone app:
 - Prompt sending via `session/prompt` with a UUID `messageId` and ACP content blocks.
 - Session status derived from `session/update` / `_goose/unstable/session/update`.
 
-Do not copy Catch's macOS-specific floating panel UX, process launching, app-support workspace management, hotkey handling, or deep links.
-
-### goose-internal / Goose2
-
-Relevant files:
-
-- `/Users/tomb/Development/goose-internal/src/shared/api/acpConnection.ts`
-- `/Users/tomb/Development/goose-internal/src/shared/api/acpApi.ts`
-- `/Users/tomb/Development/goose-internal/src/shared/api/acp.ts`
-- `/Users/tomb/Development/goose-internal/src/features/chat/acp/acpNotificationHandler.ts`
-- `/Users/tomb/Development/goose-internal/src/features/chat/lib/sessionActivation.ts`
-- `/Users/tomb/Development/goose-internal/src/features/chat/stores/chatSessionStore.ts`
-- `/Users/tomb/Development/goose-internal/src/features/chat/stores/chatStore.ts`
-- `/Users/tomb/Development/goose-internal/src/shared/types/messages.ts`
-
 Important behavior to mirror:
 
 - `loadSession` is how existing transcript history is loaded. The backend replays historical content as session notifications, so history and live streaming can share one reducer.
 - `session/list` can include useful Goose `_meta`, including created/last-message timestamps, message count, last-message snippet, provider, model, persona, archive state, and project IDs.
 - Live assistant output arrives as `agent_message_chunk` updates.
 - User history can arrive as `user_message_chunk` during replay.
-- Tool activity arrives as `tool_call` and `tool_call_update`; v0 can render compact status rows rather than fully reimplementing goose-internal's rich tool UI.
+- Tool activity arrives as `tool_call` and `tool_call_update`; v0 can render compact status rows rather than fully reimplementing another client's rich tool UI.
 - `session_info_update`, `config_option_update`, and `usage_update` should update session/runtime metadata where available, but they are not required for the first demo loop.
-- Permission callbacks in goose-internal currently auto-select the first option. For v0, the iOS app can do the same if the transport receives a `requestPermission` callback.
+- Permission callbacks may be auto-selected for v0 if the transport receives a `requestPermission` callback.
 - Mid-run steering is optional bonus scope. If it is cheap after the base `session/prompt` path works, add `_goose/unstable/session/steer` with expected-run-id handling; otherwise keep the demo to sending prompts when the session is idle.
 
 ## Minimum ACP Plus Surface
@@ -118,9 +96,9 @@ Transport assumptions:
 Start as a small native SwiftUI app with iOS 26 as the minimum deployment target.
 
 ```text
-GooseRemote/
+Away/
   App/
-    GooseRemoteApp.swift
+    AwayApp.swift
     AppEnvironment.swift
     AppRoute.swift
   ACP/
@@ -278,7 +256,7 @@ SSH hardening considerations:
 - No production reliance on mismatched background modes; any background-mode abuse is demo-only and must be isolated.
 - No offline mode or complex reconnect queue.
 - No full rich tool rendering, MCP app cards, permission UI, or artifact previews.
-- No shared library extraction from Catch or goose-internal.
+- No shared library extraction from other clients.
 - No Goose server launching from iOS.
 
 ## Staged Implementation Plan
@@ -374,7 +352,7 @@ All functionality implemented so far should be exercised in the complete running
 - Keep credentials out of UI for the prototype; represent password/private-key configuration in code and leave production Keychain/profile UX for later hardening.
 - Test SSH the same way as Stage 7: run the complete iOS app against a real Goose server over the SSH transport, verify the full session UX, and iterate on any issues before considering SSH complete.
 
-Implementation note: the intended v0 demo default is SSH-backed. Direct WebSocket remains available as a local development shortcut with `GOOSE_REMOTE_TRANSPORT=direct-websocket`. `GOOSE_REMOTE_TRANSPORT=ssh-stdio` with `GOOSE_REMOTE_SSH_COMMAND=goose acp` is the preferred validation path; WebSocket-over-SSH remains the fallback if stdio is unsuitable.
+Implementation note: the intended v0 demo default is SSH-backed. Direct WebSocket remains available as a local development shortcut with `AWAY_TRANSPORT=direct-websocket`. `AWAY_TRANSPORT=ssh-stdio` with `AWAY_SSH_COMMAND=goose acp` is the preferred validation path; WebSocket-over-SSH remains the fallback if stdio is unsuitable.
 
 ## Open Questions
 

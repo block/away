@@ -1,15 +1,15 @@
 import AVFoundation
 import XCTest
-@testable import GooseRemote
+@testable import Away
 
 final class DemoBackgroundKeepaliveTests: XCTestCase {
     func testContinuedProcessingTaskIdentifierUsesPermittedWildcardPrefix() {
         XCTAssertEqual(
             ContinuedProcessingTaskIdentifiers.task,
-            "dev.tomb.GooseRemote.continued-processing.listening"
+            "xyz.block.away.continued-processing.listening"
         )
         XCTAssertTrue(
-            ContinuedProcessingTaskIdentifiers.task.hasPrefix("dev.tomb.GooseRemote.continued-processing.")
+            ContinuedProcessingTaskIdentifiers.task.hasPrefix("xyz.block.away.continued-processing.")
         )
         XCTAssertNotEqual(
             ContinuedProcessingTaskIdentifiers.task,

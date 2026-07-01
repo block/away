@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A00000000000000000000001 /* GooseRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000101 /* GooseRemoteApp.swift */; };
+		A00000000000000000000001 /* AwayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000101 /* AwayApp.swift */; };
 		A00000000000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000102 /* AppDelegate.swift */; };
 		A00000000000000000000003 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000103 /* AppModel.swift */; };
 		A00000000000000000000004 /* AppRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000104 /* AppRoute.swift */; };
@@ -72,7 +72,7 @@
 			containerPortal = A00000000000000000000200 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A00000000000000000000300;
-			remoteInfo = GooseRemote;
+			remoteInfo = Away;
 		};
 		A00000000000000000000041 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -99,7 +99,7 @@
 
 /* Begin PBXFileReference section */
 		A00000000000000000000100 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A00000000000000000000101 /* GooseRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GooseRemoteApp.swift; sourceTree = "<group>"; };
+		A00000000000000000000101 /* AwayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AwayApp.swift; sourceTree = "<group>"; };
 		A00000000000000000000102 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A00000000000000000000103 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		A00000000000000000000104 /* AppRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRoute.swift; sourceTree = "<group>"; };
@@ -138,8 +138,8 @@
 		A00000000000000000000137 /* SessionTimestampFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTimestampFormatter.swift; sourceTree = "<group>"; };
 		A00000000000000000000138 /* SessionTimestampFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTimestampFormatterTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000139 /* SessionListPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListPresentationTests.swift; sourceTree = "<group>"; };
-		A00000000000000000000140 /* GooseRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GooseRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A00000000000000000000141 /* GooseRemoteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GooseRemoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000140 /* Away.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Away.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000141 /* AwayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AwayTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000142 /* NotificationContentExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationContentExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00000000000000000000101 /* ContinuedProcessingDemoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinuedProcessingDemoService.swift; sourceTree = "<group>"; };
 		B00000000000000000000101 /* SSHSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHSupport.swift; sourceTree = "<group>"; };
@@ -163,14 +163,14 @@
 		A00000000000000000000160 = {
 			isa = PBXGroup;
 			children = (
-				A00000000000000000000161 /* GooseRemote */,
+				A00000000000000000000161 /* Away */,
 				A00000000000000000000169 /* NotificationContentExtension */,
-				A00000000000000000000170 /* GooseRemoteTests */,
+				A00000000000000000000170 /* AwayTests */,
 				A00000000000000000000180 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		A00000000000000000000161 /* GooseRemote */ = {
+		A00000000000000000000161 /* Away */ = {
 			isa = PBXGroup;
 			children = (
 				A00000000000000000000162 /* App */,
@@ -182,7 +182,7 @@
 				A00000000000000000000168 /* Background */,
 				A00000000000000000000173 /* Support */,
 			);
-			path = GooseRemote;
+			path = Away;
 			sourceTree = "<group>";
 		};
 		A00000000000000000000162 /* App */ = {isa = PBXGroup; children = (A00000000000000000000100, A00000000000000000000101, A00000000000000000000102, A00000000000000000000103, A00000000000000000000104, A00000000000000000000105); path = App; sourceTree = "<group>"; };
@@ -193,15 +193,15 @@
 		A00000000000000000000167 /* Notifications */ = {isa = PBXGroup; children = (A00000000000000000000131); path = Notifications; sourceTree = "<group>"; };
 		A00000000000000000000168 /* Background */ = {isa = PBXGroup; children = (A00000000000000000000132, C00000000000000000000101); path = Background; sourceTree = "<group>"; };
 		A00000000000000000000169 /* NotificationContentExtension */ = {isa = PBXGroup; children = (A00000000000000000000136, A00000000000000000000133); path = NotificationContentExtension; sourceTree = "<group>"; };
-		A00000000000000000000170 /* GooseRemoteTests */ = {isa = PBXGroup; children = (A00000000000000000000134, D00000000000000000000102, E00000000000000000000103, A00000000000000000000135, F00000000000000000000101, A00000000000000000000138, A00000000000000000000139, B00000000000000000000102, B00000000000000000000103); path = GooseRemoteTests; sourceTree = "<group>"; };
+		A00000000000000000000170 /* AwayTests */ = {isa = PBXGroup; children = (A00000000000000000000134, D00000000000000000000102, E00000000000000000000103, A00000000000000000000135, F00000000000000000000101, A00000000000000000000138, A00000000000000000000139, B00000000000000000000102, B00000000000000000000103); path = AwayTests; sourceTree = "<group>"; };
 		A00000000000000000000173 /* Support */ = {isa = PBXGroup; children = (A00000000000000000000106, A00000000000000000000107); path = Support; sourceTree = "<group>"; };
 		A00000000000000000000180 /* Products */ = {isa = PBXGroup; children = (A00000000000000000000140, A00000000000000000000141, A00000000000000000000142); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A00000000000000000000300 /* GooseRemote */ = {
+		A00000000000000000000300 /* Away */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A00000000000000000000400 /* Build configuration list for PBXNativeTarget "GooseRemote" */;
+			buildConfigurationList = A00000000000000000000400 /* Build configuration list for PBXNativeTarget "Away" */;
 			buildPhases = (
 				A00000000000000000000190 /* Sources */,
 				A00000000000000000000150 /* Frameworks */,
@@ -211,20 +211,20 @@
 			dependencies = (
 				A00000000000000000000042 /* PBXTargetDependency */,
 			);
-			name = GooseRemote;
+			name = Away;
 			packageProductDependencies = (
 				B00000000000000000000201 /* NIOSSH */,
 				B00000000000000000000202 /* NIOCore */,
 				B00000000000000000000203 /* NIOPosix */,
 				B00000000000000000000204 /* Crypto */,
 			);
-			productName = GooseRemote;
-			productReference = A00000000000000000000140 /* GooseRemote.app */;
+			productName = Away;
+			productReference = A00000000000000000000140 /* Away.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A00000000000000000000301 /* GooseRemoteTests */ = {
+		A00000000000000000000301 /* AwayTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A00000000000000000000401 /* Build configuration list for PBXNativeTarget "GooseRemoteTests" */;
+			buildConfigurationList = A00000000000000000000401 /* Build configuration list for PBXNativeTarget "AwayTests" */;
 			buildPhases = (
 				A00000000000000000000191 /* Sources */,
 				A00000000000000000000151 /* Frameworks */,
@@ -233,15 +233,15 @@
 			dependencies = (
 				A00000000000000000000043 /* PBXTargetDependency */,
 			);
-			name = GooseRemoteTests;
+			name = AwayTests;
 			packageProductDependencies = (
 				B00000000000000000000201 /* NIOSSH */,
 				B00000000000000000000202 /* NIOCore */,
 				B00000000000000000000203 /* NIOPosix */,
 				B00000000000000000000204 /* Crypto */,
 			);
-			productName = GooseRemoteTests;
-			productReference = A00000000000000000000141 /* GooseRemoteTests.xctest */;
+			productName = AwayTests;
+			productReference = A00000000000000000000141 /* AwayTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		A00000000000000000000302 /* NotificationContentExtension */ = {
@@ -273,7 +273,7 @@
 					A00000000000000000000302 = {CreatedOnToolsVersion = 26.5;};
 				};
 			};
-			buildConfigurationList = A00000000000000000000403 /* Build configuration list for PBXProject "GooseRemote" */;
+			buildConfigurationList = A00000000000000000000403 /* Build configuration list for PBXProject "Away" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -288,8 +288,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A00000000000000000000300 /* GooseRemote */,
-				A00000000000000000000301 /* GooseRemoteTests */,
+				A00000000000000000000300 /* Away */,
+				A00000000000000000000301 /* AwayTests */,
 				A00000000000000000000302 /* NotificationContentExtension */,
 			);
 		};
@@ -347,25 +347,25 @@
 
 /* Begin PBXTargetDependency section */
 		A00000000000000000000042 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A00000000000000000000302 /* NotificationContentExtension */; targetProxy = A00000000000000000000041 /* PBXContainerItemProxy */; };
-		A00000000000000000000043 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A00000000000000000000300 /* GooseRemote */; targetProxy = A00000000000000000000040 /* PBXContainerItemProxy */; };
+		A00000000000000000000043 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A00000000000000000000300 /* Away */; targetProxy = A00000000000000000000040 /* PBXContainerItemProxy */; };
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A00000000000000000000500 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ANALYZER_NONNULL = YES; CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE; CLANG_CXX_LANGUAGE_STANDARD = "gnu++20"; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_ENABLE_OBJC_WEAK = YES; CLANG_WARN_DOCUMENTATION_COMMENTS = YES; CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = dwarf; DEVELOPMENT_TEAM = ""; ENABLE_STRICT_OBJC_MSGSEND = YES; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_DYNAMIC_NO_PIC = NO; GCC_NO_COMMON_BLOCKS = YES; GCC_OPTIMIZATION_LEVEL = 0; GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)"); IPHONEOS_DEPLOYMENT_TARGET = 26.0; MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE; ONLY_ACTIVE_ARCH = YES; SDKROOT = iphoneos; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_STRICT_CONCURRENCY = minimal; SWIFT_VERSION = 6.0;}; name = Debug; };
 		A00000000000000000000501 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ANALYZER_NONNULL = YES; CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE; CLANG_CXX_LANGUAGE_STANDARD = "gnu++20"; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_ENABLE_OBJC_WEAK = YES; CLANG_WARN_DOCUMENTATION_COMMENTS = YES; CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; DEVELOPMENT_TEAM = ""; ENABLE_NS_ASSERTIONS = NO; ENABLE_STRICT_OBJC_MSGSEND = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_NO_COMMON_BLOCKS = YES; IPHONEOS_DEPLOYMENT_TARGET = 26.0; MTL_ENABLE_DEBUG_INFO = NO; SDKROOT = iphoneos; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_STRICT_CONCURRENCY = minimal; SWIFT_VERSION = 6.0; VALIDATE_PRODUCT = YES;}; name = Release; };
-		A00000000000000000000502 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = GooseRemote/App/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemote; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Debug; };
-		A00000000000000000000503 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = GooseRemote/App/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemote; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Release; };
-		A00000000000000000000504 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemoteTests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GooseRemote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GooseRemote";}; name = Debug; };
-		A00000000000000000000505 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemoteTests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GooseRemote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GooseRemote";}; name = Release; };
-		A00000000000000000000506 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = NotificationContentExtension/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemote.NotificationContentExtension; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Debug; };
-		A00000000000000000000507 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = NotificationContentExtension/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = dev.tomb.GooseRemote.NotificationContentExtension; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Release; };
+		A00000000000000000000502 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = Away/App/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = xyz.block.away; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Debug; };
+		A00000000000000000000503 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = Away/App/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = xyz.block.away; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Release; };
+		A00000000000000000000504 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = xyz.block.away.tests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Away.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Away";}; name = Debug; };
+		A00000000000000000000505 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = xyz.block.away.tests; PRODUCT_NAME = "$(TARGET_NAME)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Away.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Away";}; name = Release; };
+		A00000000000000000000506 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = NotificationContentExtension/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = xyz.block.away.NotificationContentExtension; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Debug; };
+		A00000000000000000000507 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = NotificationContentExtension/Info.plist; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = xyz.block.away.NotificationContentExtension; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_EMIT_LOC_STRINGS = YES; TARGETED_DEVICE_FAMILY = 1;}; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A00000000000000000000400 /* Build configuration list for PBXNativeTarget "GooseRemote" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000502, A00000000000000000000503); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		A00000000000000000000401 /* Build configuration list for PBXNativeTarget "GooseRemoteTests" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000504, A00000000000000000000505); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000000400 /* Build configuration list for PBXNativeTarget "Away" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000502, A00000000000000000000503); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000000401 /* Build configuration list for PBXNativeTarget "AwayTests" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000504, A00000000000000000000505); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		A00000000000000000000402 /* Build configuration list for PBXNativeTarget "NotificationContentExtension" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000506, A00000000000000000000507); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		A00000000000000000000403 /* Build configuration list for PBXProject "GooseRemote" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000500, A00000000000000000000501); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000000403 /* Build configuration list for PBXProject "Away" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000500, A00000000000000000000501); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */

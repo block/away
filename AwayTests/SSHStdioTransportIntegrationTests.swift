@@ -3,7 +3,7 @@ import NIOCore
 import NIOPosix
 import NIOSSH
 import XCTest
-@testable import GooseRemote
+@testable import Away
 
 final class SSHStdioTransportIntegrationTests: XCTestCase {
     func testStdioTransportRoundTripsJSONLineThroughSSHExecChannel() async throws {

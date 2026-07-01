@@ -1,5 +1,5 @@
 import XCTest
-@testable import GooseRemote
+@testable import Away
 
 final class ExportedSessionSnapshotTests: XCTestCase {
     func testParseKeepsLatestUsefulMessagesAndStoresEarlierMessages() throws {
