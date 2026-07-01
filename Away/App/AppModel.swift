@@ -56,6 +56,7 @@ final class AppModel {
     @ObservationIgnored private var queuedPromptAttachRetryAttemptsBySession: [String: Int] = [:]
     @ObservationIgnored private var silentReplaySessionIDs: Set<String> = []
     @ObservationIgnored private var outboundPromptSessionIDs: Set<String> = []
+    @ObservationIgnored private var locallyStartedRunSessionIDs: Set<String> = []
     @ObservationIgnored private var shortBackgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @ObservationIgnored private var lastNotifiedMessageIDs: Set<String> = []
     @ObservationIgnored private let connectionConfig: RemoteConnectionConfig
@@ -232,6 +233,7 @@ final class AppModel {
             queuedPromptDrainRetrySessionIDs.remove(sessionID)
             silentReplaySessionIDs.remove(sessionID)
             outboundPromptSessionIDs.remove(sessionID)
+            locallyStartedRunSessionIDs.remove(sessionID)
         }
         pendingNotifications.removeAll { sessionIDs.contains($0.sessionID) }
 
@@ -289,7 +291,8 @@ final class AppModel {
               scenePhase == .active,
               connectionState == .connected,
               !silentReplaySessionIDs.contains(sessionID),
-              !outboundPromptSessionIDs.contains(sessionID)
+              !outboundPromptSessionIDs.contains(sessionID),
+              !locallyStartedRunSessionIDs.contains(sessionID)
         else {
             return
         }
@@ -297,8 +300,6 @@ final class AppModel {
         let runtime = runtimeBySession[sessionID]
         guard runtime?.isOpening != true,
               runtime?.isReplaying != true,
-              runtime?.activeRunID == nil,
-              runtime?.streamingMessageID == nil,
               runtime?.hasAuthoritativeReplay == true || messagesBySession[sessionID]?.isEmpty == false
         else {
             return
@@ -605,6 +606,7 @@ final class AppModel {
         queuedPromptAttachRetryAttemptsBySession.removeAll()
         silentReplaySessionIDs.removeAll()
         outboundPromptSessionIDs.removeAll()
+        locallyStartedRunSessionIDs.removeAll()
         if let client {
             await client.close()
         }
@@ -709,6 +711,9 @@ final class AppModel {
                 runtimeBySession[sessionID] = reducer.runtime
             }
             patchSessionMetadata(sessionID: sessionID, from: mergedResult)
+            if mergedResult.didCompleteRun {
+                locallyStartedRunSessionIDs.remove(sessionID)
+            }
         }
 
         postBackgroundNotifications(assistantNotifications)
@@ -772,8 +777,10 @@ final class AppModel {
             if let activeRunID {
                 let newRunID = try await client.steer(sessionID: sessionID, expectedRunID: activeRunID, text: text)
                 runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = newRunID
+                locallyStartedRunSessionIDs.insert(sessionID)
             } else {
                 try await client.sendPrompt(sessionID: sessionID, messageID: messageID, text: text)
+                locallyStartedRunSessionIDs.insert(sessionID)
             }
             return true
         } catch {
