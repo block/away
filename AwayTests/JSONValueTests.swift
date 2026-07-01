@@ -32,30 +32,21 @@ final class JSONValueTests: XCTestCase {
         XCTAssertEqual(session?.messageCount, 3)
     }
 
-    func testDemoConfigDefaultsToSSHStdio() {
-        let config = RemoteConnectionConfig.demo(environment: [:])
+    func testDemoConfigDefaultsToDirectWebSocket() throws {
+        let config = try RemoteConnectionConfig.demo(environment: [:])
 
         switch config.mode {
-        case .sshStdio(let ssh):
-            XCTAssertEqual(ssh.host, "127.0.0.1")
-            XCTAssertEqual(ssh.port, 22)
-            XCTAssertEqual(ssh.username, NSUserName())
-            XCTAssertEqual(ssh.command, "goose acp")
-            switch ssh.authentication {
-            case .none:
-                break
-            default:
-                XCTFail("Expected no default SSH authentication")
-            }
+        case .directWebSocket(let url):
+            XCTAssertEqual(url.absoluteString, "ws://127.0.0.1:32845/acp?token=local-secret")
         default:
-            XCTFail("Expected SSH stdio mode")
+            XCTFail("Expected direct WebSocket mode")
         }
         XCTAssertEqual(config.defaultCWD, "~")
         XCTAssertFalse(config.demoBackgroundKeepaliveEnabled)
     }
 
-    func testDemoConfigReadsDirectWebSocketEnvironment() {
-        let config = RemoteConnectionConfig.demo(environment: [
+    func testDemoConfigReadsDirectWebSocketEnvironment() throws {
+        let config = try RemoteConnectionConfig.demo(environment: [
             "AWAY_TRANSPORT": "direct-websocket",
             "AWAY_ACP_URL": "ws://example.local:32845/acp?token=test"
         ])
@@ -68,8 +59,21 @@ final class JSONValueTests: XCTestCase {
         }
     }
 
-    func testDemoConfigReadsSSHStdioEnvironment() {
-        let config = RemoteConnectionConfig.demo(environment: [
+    func testDemoConfigReadsGooseServeURLAsDefaultWebSocketURL() throws {
+        let config = try RemoteConnectionConfig.demo(environment: [
+            "GOOSE_SERVE_URL": "ws://127.0.0.1:32845/acp?token=goose2"
+        ])
+
+        switch config.mode {
+        case .directWebSocket(let url):
+            XCTAssertEqual(url.absoluteString, "ws://127.0.0.1:32845/acp?token=goose2")
+        default:
+            XCTFail("Expected direct WebSocket mode")
+        }
+    }
+
+    func testDemoConfigReadsSSHStdioEnvironment() throws {
+        let config = try RemoteConnectionConfig.demo(environment: [
             "AWAY_TRANSPORT": "ssh-stdio",
             "AWAY_SSH_HOST": "localhost",
             "AWAY_SSH_PORT": "2222",
@@ -108,8 +112,9 @@ final class JSONValueTests: XCTestCase {
             defaults.removePersistentDomain(forName: suiteName)
         }
 
-        _ = RemoteConnectionConfig.demo(
+        _ = try RemoteConnectionConfig.demo(
             environment: [
+                "AWAY_TRANSPORT": "ssh-stdio",
                 "AWAY_SSH_HOST": "127.0.0.1",
                 "AWAY_SSH_PORT": "2222",
                 "AWAY_SSH_USERNAME": "demo",
@@ -119,7 +124,7 @@ final class JSONValueTests: XCTestCase {
             settingsStore: store
         )
 
-        let relaunchedConfig = RemoteConnectionConfig.demo(
+        let relaunchedConfig = try RemoteConnectionConfig.demo(
             environment: [:],
             settingsStore: store
         )
@@ -138,6 +143,56 @@ final class JSONValueTests: XCTestCase {
             }
         default:
             XCTFail("Expected persisted SSH stdio mode")
+        }
+    }
+
+    func testSSHSettingsWithoutTransportDoNotChangeDefaultTransport() throws {
+        let suiteName = "AwayTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let store = DemoConnectionSettingsStore(defaults: defaults)
+        defer {
+            store.clear()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        _ = try RemoteConnectionConfig.demo(
+            environment: [
+                "AWAY_SSH_HOST": "127.0.0.1",
+                "AWAY_SSH_PORT": "2222",
+                "AWAY_SSH_USERNAME": "demo",
+                "AWAY_SSH_PASSWORD": "secret",
+                "AWAY_SSH_COMMAND": "goose acp"
+            ],
+            settingsStore: store
+        )
+
+        let relaunchedConfig = try RemoteConnectionConfig.demo(
+            environment: [:],
+            settingsStore: store
+        )
+
+        switch relaunchedConfig.mode {
+        case .directWebSocket(let url):
+            XCTAssertEqual(url.absoluteString, "ws://127.0.0.1:32845/acp?token=local-secret")
+        default:
+            XCTFail("Expected direct WebSocket mode")
+        }
+    }
+
+    func testInvalidTransportReturnsConfigurationError() {
+        XCTAssertThrowsError(try RemoteConnectionConfig.demo(environment: [
+            "AWAY_TRANSPORT": "bogus"
+        ])) { error in
+            XCTAssertEqual(error as? RemoteConnectionConfigError, .unsupportedTransport("bogus"))
+        }
+    }
+
+    func testInvalidSSHPortReturnsConfigurationError() {
+        XCTAssertThrowsError(try RemoteConnectionConfig.demo(environment: [
+            "AWAY_TRANSPORT": "ssh-stdio",
+            "AWAY_SSH_PORT": "abc"
+        ])) { error in
+            XCTAssertEqual(error as? RemoteConnectionConfigError, .invalidPort("abc"))
         }
     }
 }

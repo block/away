@@ -55,15 +55,22 @@ final class AppModel {
     @ObservationIgnored private var queuedPromptAttachRetryAttemptsBySession: [String: Int] = [:]
     @ObservationIgnored private var shortBackgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     @ObservationIgnored private var lastNotifiedMessageIDs: Set<String> = []
-    @ObservationIgnored private let connectionConfig: RemoteConnectionConfig
+    @ObservationIgnored private let connectionConfigResult: Result<RemoteConnectionConfig, RemoteConnectionConfigError>
     @ObservationIgnored private let notificationCoordinator = NotificationCoordinator.shared
     @ObservationIgnored private let backgroundKeepalive = DemoBackgroundKeepaliveService()
     @ObservationIgnored private let exportTailMessageLimit = 16
     @ObservationIgnored private let loadDelay = Duration.milliseconds(450)
     @ObservationIgnored private let maxQueuedPromptAttachRetryAttempts = 3
 
-    init(connectionConfig: RemoteConnectionConfig = .demo) {
-        self.connectionConfig = connectionConfig
+    init(connectionConfigResult: Result<RemoteConnectionConfig, RemoteConnectionConfigError> = RemoteConnectionConfig.demoResult) {
+        self.connectionConfigResult = connectionConfigResult
+        if case .success(let connectionConfig) = connectionConfigResult {
+            self.demoBackgroundKeepaliveEnabled = connectionConfig.demoBackgroundKeepaliveEnabled
+        }
+    }
+
+    init(connectionConfig: RemoteConnectionConfig) {
+        self.connectionConfigResult = .success(connectionConfig)
         self.demoBackgroundKeepaliveEnabled = connectionConfig.demoBackgroundKeepaliveEnabled
     }
 
@@ -135,6 +142,7 @@ final class AppModel {
         errorMessage = nil
 
         do {
+            let connectionConfig = try connectionConfigResult.get()
             let transport = try RemoteConnectionProvider().makeTransport(config: connectionConfig)
             let client = ACPClient(transport: transport)
             self.client = client
@@ -147,6 +155,10 @@ final class AppModel {
             errorMessage = error.localizedDescription
             await closeCurrentClient()
         }
+    }
+
+    private func defaultCWD() -> String {
+        (try? connectionConfigResult.get().defaultCWD) ?? "~"
     }
 
     func refreshSessions() async {
@@ -232,7 +244,7 @@ final class AppModel {
 
         do {
             let cwd = sessions.first(where: { $0.id == sessionID })?.cwd
-            try await client.loadSession(sessionID: sessionID, cwd: cwd ?? connectionConfig.defaultCWD)
+            try await client.loadSession(sessionID: sessionID, cwd: cwd ?? defaultCWD())
             guard isCurrentOpen(sessionID: sessionID, token: openToken) else {
                 clearOpeningStateIfNoLongerCurrent(sessionID: sessionID)
                 return

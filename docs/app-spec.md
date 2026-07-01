@@ -22,17 +22,17 @@ The remote machine only needs a Goose ACP server. The prototype may reference ex
 
 ## ACP Transport
 
-The primary demo transport is SSH stdio running:
+The primary demo transport is a direct WebSocket connection to an existing local Goose ACP server:
 
 ```text
-goose acp
+ws://127.0.0.1:32845/acp?token=local-secret
 ```
 
 The app uses an `ACPTransport` abstraction so session and chat UI are not tied to a concrete transport. Supported prototype transports are:
 
-- SSH stdio, the default demo path.
+- Direct WebSocket, the default demo path while Away runs in an iOS Simulator on the same laptop as Goose.
+- SSH stdio, retained as an explicit local validation mode with `AWAY_TRANSPORT=ssh-stdio`.
 - SSH-forwarded WebSocket, retained as a legacy debug path.
-- Direct WebSocket, retained as a legacy local development shortcut.
 
 The app speaks JSON-RPC 2.0 ACP messages over the selected transport. The core ACP surface is:
 
@@ -52,6 +52,8 @@ Relevant session updates include:
 - `session_info_update`
 - `usage_update`
 - `config_option_update`
+
+Until Goose cross-client ACP broadcast is available in the shared server path, Away may keep a narrow polling refresh workaround for session list freshness. That workaround is temporary and tracks [aaif-goose/goose#10130](https://github.com/aaif-goose/goose/issues/10130); it must not replace live session updates once the server broadcasts them.
 
 Assistant-only replay chunks, such as hidden prompt context with `annotations.audience` that does not include `user`, must not be displayed in the transcript.
 

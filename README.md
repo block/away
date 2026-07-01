@@ -17,14 +17,30 @@ Swift Package Manager resolves all dependencies from public Apple repositories.
 Open `Away.xcodeproj` in Xcode, select the `Away` scheme, choose an iOS simulator,
 and run.
 
-The prototype defaults to SSH stdio transport and runs:
+The prototype defaults to a direct WebSocket ACP connection to a local Goose server:
 
 ```text
-goose acp
+ws://127.0.0.1:32845/acp?token=local-secret
 ```
 
-The app can be configured with launch environment variables while the connection UI is still
-prototype-only:
+Start or reuse a local Goose server on that port before launching Away:
+
+```text
+GOOSE_SERVER__SECRET_KEY=local-secret goose serve --host 127.0.0.1 --port 32845
+```
+
+The WebSocket URL can be overridden with either variable:
+
+```text
+AWAY_TRANSPORT=direct-websocket
+AWAY_ACP_URL=ws://127.0.0.1:32845/acp?token=local-secret
+```
+
+```text
+GOOSE_SERVE_URL=ws://127.0.0.1:32845/acp?token=local-secret
+```
+
+SSH stdio remains available as an explicit alternate validation mode:
 
 ```text
 AWAY_TRANSPORT=ssh-stdio
@@ -33,13 +49,6 @@ AWAY_SSH_PORT=22
 AWAY_SSH_USERNAME=<user>
 AWAY_SSH_PASSWORD=<password>
 AWAY_SSH_COMMAND=goose acp
-```
-
-For local protocol development, a direct WebSocket shortcut is also available:
-
-```text
-AWAY_TRANSPORT=direct-websocket
-AWAY_ACP_URL=ws://127.0.0.1:32845/acp?token=local-secret
 ```
 
 ## Test

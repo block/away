@@ -13,54 +13,74 @@ struct RemoteConnectionConfig: Sendable {
     var defaultCWD: String
     var demoBackgroundKeepaliveEnabled: Bool
 
-    static let demo = demo(
+    static let demoResult = demoResult(
         environment: ProcessInfo.processInfo.environment,
         settingsStore: .standard
     )
 
-    static func demo(environment: [String: String]) -> RemoteConnectionConfig {
-        makeDemoConfig(environment: environment)
+    static var demo: RemoteConnectionConfig {
+        do {
+            return try demoResult.get()
+        } catch {
+            preconditionFailure(error.localizedDescription)
+        }
+    }
+
+    static func demo(environment: [String: String]) throws -> RemoteConnectionConfig {
+        try makeDemoConfig(environment: environment)
     }
 
     static func demo(
         environment: [String: String],
         settingsStore: DemoConnectionSettingsStore
-    ) -> RemoteConnectionConfig {
+    ) throws -> RemoteConnectionConfig {
         let mergedEnvironment = settingsStore.environmentByMergingSavedSettings(with: environment)
-        let config = makeDemoConfig(environment: mergedEnvironment)
+        let config = try makeDemoConfig(environment: mergedEnvironment)
         settingsStore.saveExplicitSettings(from: environment)
         return config
     }
 
-    private static func makeDemoConfig(environment: [String: String]) -> RemoteConnectionConfig {
-        let defaultCWD = environment["AWAY_DEFAULT_CWD"] ?? "~"
+    static func demoResult(
+        environment: [String: String],
+        settingsStore: DemoConnectionSettingsStore
+    ) -> Result<RemoteConnectionConfig, RemoteConnectionConfigError> {
+        do {
+            return .success(try demo(environment: environment, settingsStore: settingsStore))
+        } catch let error as RemoteConnectionConfigError {
+            return .failure(error)
+        } catch {
+            preconditionFailure("Unexpected demo connection config error: \(error.localizedDescription)")
+        }
+    }
+
+    private static func makeDemoConfig(environment: [String: String]) throws -> RemoteConnectionConfig {
+        let defaultCWD = normalizedString(environment["AWAY_DEFAULT_CWD"]) ?? "~"
         let keepaliveEnabled = environment["AWAY_BACKGROUND_KEEPALIVE"] == "1"
-        let mode = environment["AWAY_TRANSPORT"].map(normalizeMode) ?? "sshstdio"
+        let mode = environment["AWAY_TRANSPORT"].map(normalizeMode) ?? "directwebsocket"
 
         switch mode {
         case "sshstdio":
             return RemoteConnectionConfig(
-                mode: .sshStdio(makeSSHConfig(environment: environment)),
+                mode: .sshStdio(try makeSSHConfig(environment: environment)),
                 defaultCWD: defaultCWD,
                 demoBackgroundKeepaliveEnabled: keepaliveEnabled
             )
 
         case "sshforwardedwebsocket":
-            let rawURL = environment["AWAY_REMOTE_ACP_URL"] ?? defaultDirectWebSocketURL
-            guard let remoteACPURL = URL(string: rawURL) else {
-                preconditionFailure("AWAY_REMOTE_ACP_URL is invalid: \(rawURL)")
-            }
+            let rawURL = normalizedString(environment["AWAY_REMOTE_ACP_URL"]) ?? defaultDirectWebSocketURL
+            let remoteACPURL = try makeURL(rawURL, key: "AWAY_REMOTE_ACP_URL")
             return RemoteConnectionConfig(
-                mode: .sshForwardedWebSocket(makeSSHConfig(environment: environment), remoteACPURL: remoteACPURL),
+                mode: .sshForwardedWebSocket(try makeSSHConfig(environment: environment), remoteACPURL: remoteACPURL),
                 defaultCWD: defaultCWD,
                 demoBackgroundKeepaliveEnabled: keepaliveEnabled
             )
 
         case "directwebsocket", "websocket":
-            let rawURL = environment["AWAY_ACP_URL"] ?? defaultDirectWebSocketURL
-            guard let url = URL(string: rawURL) else {
-                preconditionFailure("AWAY_ACP_URL is invalid: \(rawURL)")
-            }
+            let awayURL = normalizedString(environment["AWAY_ACP_URL"])
+            let gooseServeURL = normalizedString(environment["GOOSE_SERVE_URL"])
+            let rawURL = awayURL ?? gooseServeURL ?? defaultDirectWebSocketURL
+            let urlKey = awayURL != nil ? "AWAY_ACP_URL" : (gooseServeURL != nil ? "GOOSE_SERVE_URL" : "AWAY_ACP_URL")
+            let url = try makeURL(rawURL, key: urlKey)
             return RemoteConnectionConfig(
                 mode: .directWebSocket(url),
                 defaultCWD: defaultCWD,
@@ -68,7 +88,7 @@ struct RemoteConnectionConfig: Sendable {
             )
 
         default:
-            preconditionFailure("Unsupported AWAY_TRANSPORT: \(environment["AWAY_TRANSPORT"] ?? mode)")
+            throw RemoteConnectionConfigError.unsupportedTransport(environment["AWAY_TRANSPORT"] ?? mode)
         }
     }
 
@@ -78,41 +98,41 @@ struct RemoteConnectionConfig: Sendable {
         raw.filter(\.isLetter).lowercased()
     }
 
-    private static func makeSSHConfig(environment: [String: String]) -> SSHConfig {
-        let host = environment["AWAY_SSH_HOST"] ?? "127.0.0.1"
-        let port = environment["AWAY_SSH_PORT"].flatMap(Int.init) ?? 22
-        let username = environment["AWAY_SSH_USERNAME"] ?? NSUserName()
-        let command = environment["AWAY_SSH_COMMAND"] ?? "goose acp"
+    private static func makeSSHConfig(environment: [String: String]) throws -> SSHConfig {
+        let host = normalizedString(environment["AWAY_SSH_HOST"]) ?? "127.0.0.1"
+        let port = try makePort(environment["AWAY_SSH_PORT"])
+        let username = normalizedString(environment["AWAY_SSH_USERNAME"]) ?? NSUserName()
+        let command = normalizedString(environment["AWAY_SSH_COMMAND"]) ?? "goose acp"
 
         return SSHConfig(
             host: host,
             port: port,
             username: username,
-            authentication: makeSSHAuthentication(environment: environment),
+            authentication: try makeSSHAuthentication(environment: environment),
             command: command
         )
     }
 
-    private static func makeSSHAuthentication(environment: [String: String]) -> SSHAuthentication {
-        if let password = environment["AWAY_SSH_PASSWORD"] {
+    private static func makeSSHAuthentication(environment: [String: String]) throws -> SSHAuthentication {
+        if let password = normalizedString(environment["AWAY_SSH_PASSWORD"]) {
             return .password(password)
         }
 
-        if let pemBase64 = environment["AWAY_SSH_P256_PRIVATE_KEY_PEM_BASE64"] {
+        if let pemBase64 = normalizedString(environment["AWAY_SSH_P256_PRIVATE_KEY_PEM_BASE64"]) {
             guard let data = Data(base64Encoded: pemBase64),
                   let pem = String(data: data, encoding: .utf8),
                   let key = try? P256.Signing.PrivateKey(pemRepresentation: pem)
             else {
-                preconditionFailure("AWAY_SSH_P256_PRIVATE_KEY_PEM_BASE64 is not a valid P-256 PEM key")
+                throw RemoteConnectionConfigError.invalidP256PrivateKey("AWAY_SSH_P256_PRIVATE_KEY_PEM_BASE64")
             }
             return .privateKey(NIOSSHPrivateKey(p256Key: key))
         }
 
-        if let rawBase64 = environment["AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64"] {
+        if let rawBase64 = normalizedString(environment["AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64"]) {
             guard let data = Data(base64Encoded: rawBase64),
                   let key = try? P256.Signing.PrivateKey(rawRepresentation: data)
             else {
-                preconditionFailure("AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64 is not a valid P-256 raw key")
+                throw RemoteConnectionConfigError.invalidP256PrivateKey("AWAY_SSH_P256_PRIVATE_KEY_RAW_BASE64")
             }
             return .privateKey(NIOSSHPrivateKey(p256Key: key))
         }
@@ -120,11 +140,53 @@ struct RemoteConnectionConfig: Sendable {
         return .none
     }
 
+    private static func makeURL(_ raw: String, key: String) throws -> URL {
+        guard let url = URL(string: raw), url.scheme != nil, url.host != nil else {
+            throw RemoteConnectionConfigError.invalidURL(key: key, value: raw)
+        }
+        return url
+    }
+
+    private static func makePort(_ raw: String?) throws -> Int {
+        guard let raw = normalizedString(raw) else { return 22 }
+        guard let port = Int(raw), (1...65535).contains(port) else {
+            throw RemoteConnectionConfigError.invalidPort(raw)
+        }
+        return port
+    }
+
+    private static func normalizedString(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
     static func directWebSocketURL(_ raw: String) -> URL {
         guard let url = URL(string: raw) else {
             preconditionFailure("Hardcoded demo ACP URL is invalid")
         }
         return url
+    }
+}
+
+enum RemoteConnectionConfigError: LocalizedError, Equatable, Sendable {
+    case unsupportedTransport(String)
+    case invalidURL(key: String, value: String)
+    case invalidPort(String)
+    case invalidP256PrivateKey(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .unsupportedTransport(let value):
+            "Unsupported AWAY_TRANSPORT: \(value). Use direct-websocket, websocket, ssh-stdio, or ssh-forwarded-websocket."
+        case .invalidURL(let key, let value):
+            "\(key) is invalid: \(value)"
+        case .invalidPort(let value):
+            "AWAY_SSH_PORT must be an integer from 1 to 65535: \(value)"
+        case .invalidP256PrivateKey(let key):
+            "\(key) is not a valid P-256 private key."
+        }
     }
 }
 
@@ -163,6 +225,7 @@ struct DemoConnectionSettingsStore: @unchecked Sendable {
     private static let keys = [
         "AWAY_TRANSPORT",
         "AWAY_ACP_URL",
+        "GOOSE_SERVE_URL",
         "AWAY_REMOTE_ACP_URL",
         "AWAY_DEFAULT_CWD",
         "AWAY_BACKGROUND_KEEPALIVE",
@@ -186,9 +249,6 @@ struct DemoConnectionSettingsStore: @unchecked Sendable {
         for (key, value) in environment where Self.keys.contains(key) {
             merged[key] = value
         }
-        if environmentContainsSSHSettings(environment), environment["AWAY_TRANSPORT"] == nil {
-            merged["AWAY_TRANSPORT"] = "ssh-stdio"
-        }
         return merged
     }
 
@@ -198,11 +258,6 @@ struct DemoConnectionSettingsStore: @unchecked Sendable {
             guard let value = environment[key] else { continue }
             hasAnyExplicitSetting = true
             defaults.set(value, forKey: storageKey(key))
-        }
-
-        if environmentContainsSSHSettings(environment), environment["AWAY_TRANSPORT"] == nil {
-            hasAnyExplicitSetting = true
-            defaults.set("ssh-stdio", forKey: storageKey("AWAY_TRANSPORT"))
         }
 
         if hasAnyExplicitSetting {
@@ -224,12 +279,6 @@ struct DemoConnectionSettingsStore: @unchecked Sendable {
             }
         }
         return settings
-    }
-
-    private func environmentContainsSSHSettings(_ environment: [String: String]) -> Bool {
-        environment.keys.contains { key in
-            key.hasPrefix("AWAY_SSH_")
-        }
     }
 
     private func storageKey(_ key: String) -> String {

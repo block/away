@@ -1,7 +1,7 @@
 import Foundation
 
 struct AppEnvironment: Sendable {
-    var connectionConfig: RemoteConnectionConfig
+    var connectionConfigResult: Result<RemoteConnectionConfig, RemoteConnectionConfigError>
 
-    static let demo = AppEnvironment(connectionConfig: .demo)
+    static let demo = AppEnvironment(connectionConfigResult: RemoteConnectionConfig.demoResult)
 }

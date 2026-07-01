@@ -973,6 +973,6 @@ final class ExportedSessionSnapshotTests: XCTestCase {
 
     private func makeTestConnectionConfig() -> RemoteConnectionConfig {
         let store = DemoConnectionSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
-        return .demo(environment: [:], settingsStore: store)
+        return try! .demo(environment: [:], settingsStore: store)
     }
 }
