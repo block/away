@@ -481,6 +481,56 @@ final class ExportedSessionSnapshotTests: XCTestCase {
     }
 
     @MainActor
+    func testPublishingListedSessionsFiltersArchivedSessionsAndClearsLocalState() {
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(id: "archived", title: "Archived", updatedAt: Date(timeIntervalSince1970: 100)),
+            SessionSummary(id: "active", title: "Active", updatedAt: Date(timeIntervalSince1970: 90))
+        ]
+        model.activeSessionID = "archived"
+        model.messagesBySession["archived"] = [
+            ChatMessage(id: "m1", role: .assistant, content: [.text("stale")])
+        ]
+        model.earlierMessagesBySession["archived"] = [
+            ChatMessage(id: "m0", role: .user, content: [.text("older")])
+        ]
+        model.draftBySession["archived"] = "draft"
+        model.runtimeBySession["archived"] = SessionRuntime(activeRunID: "run")
+        model.queuePromptForTesting(id: "queued", text: "queued", for: "archived")
+        model.enqueueNotificationForTesting(
+            ACPNotification(
+                sessionID: "archived",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "agent_message_chunk",
+                    "messageId": "pending",
+                    "content": [
+                        "type": "text",
+                        "text": "pending"
+                    ]
+                ])
+            )
+        )
+
+        model.publishListedSessionsForTesting([
+            SessionSummary(
+                id: "archived",
+                title: "Archived",
+                updatedAt: Date(timeIntervalSince1970: 110),
+                archivedAt: Date(timeIntervalSince1970: 120)
+            ),
+            SessionSummary(id: "active", title: "Active", updatedAt: Date(timeIntervalSince1970: 90))
+        ])
+
+        XCTAssertEqual(model.sessions.map(\.id), ["active"])
+        XCTAssertNil(model.activeSessionID)
+        XCTAssertNil(model.messagesBySession["archived"])
+        XCTAssertNil(model.earlierMessagesBySession["archived"])
+        XCTAssertNil(model.draftBySession["archived"])
+        XCTAssertNil(model.runtimeBySession["archived"])
+        XCTAssertEqual(model.pendingNotificationCountForTesting(sessionID: "archived"), 0)
+    }
+
+    @MainActor
     func testPublishingSnapshotCapsSessionPreview() throws {
         let model = AppModel(connectionConfig: makeTestConnectionConfig())
         model.sessions = [SessionSummary(id: "s1", title: "Session")]

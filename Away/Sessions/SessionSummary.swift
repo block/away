@@ -77,6 +77,9 @@ struct SessionSummary: Identifiable, Equatable, Sendable {
         self.lastMessageAt = ISO8601DateParsing.parse(meta?["lastMessageAt"]?.stringValue)
             ?? ISO8601DateParsing.parse(object["lastMessageAt"]?.stringValue)
         self.archivedAt = ISO8601DateParsing.parse(meta?["archivedAt"]?.stringValue)
+            ?? ISO8601DateParsing.parse(meta?["archived_at"]?.stringValue)
+            ?? ISO8601DateParsing.parse(object["archivedAt"]?.stringValue)
+            ?? ISO8601DateParsing.parse(object["archived_at"]?.stringValue)
         self.providerID = meta?["providerId"]?.stringValue
         self.modelID = meta?["modelId"]?.stringValue
         self.personaID = meta?["personaId"]?.stringValue
