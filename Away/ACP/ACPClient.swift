@@ -215,7 +215,7 @@ actor ACPClient {
 
         pending.timeoutTask.cancel()
         if let error = envelope.error {
-            pending.continuation.resume(throwing: ACPError.rpcError(error.message))
+            pending.continuation.resume(throwing: ACPError.rpcError(error.message, data: error.data))
         } else {
             pending.continuation.resume(returning: envelope.result ?? .object([:]))
         }

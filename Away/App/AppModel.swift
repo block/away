@@ -604,12 +604,24 @@ final class AppModel {
                 do {
                     let newRunID = try await client.steer(sessionID: sessionID, expectedRunID: activeRunID, text: text)
                     runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = newRunID
-                } catch let error as ACPError where error.isInvalidParams {
+                } catch let error as ACPError where error.isNoActiveRunToSteer {
                     runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = nil
                     try await client.sendPrompt(sessionID: sessionID, messageID: messageID, text: text)
+                } catch let error as ACPError where error.isInvalidParams {
+                    guard let activeRunID = error.activeRunIDHint else { throw error }
+                    runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = activeRunID
+                    let newRunID = try await client.steer(sessionID: sessionID, expectedRunID: activeRunID, text: text)
+                    runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = newRunID
                 }
             } else {
-                try await client.sendPrompt(sessionID: sessionID, messageID: messageID, text: text)
+                do {
+                    try await client.sendPrompt(sessionID: sessionID, messageID: messageID, text: text)
+                } catch let error as ACPError where error.isInvalidParams {
+                    guard let activeRunID = error.activeRunIDHint else { throw error }
+                    runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = activeRunID
+                    let newRunID = try await client.steer(sessionID: sessionID, expectedRunID: activeRunID, text: text)
+                    runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = newRunID
+                }
             }
             runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = nil
             return true

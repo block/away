@@ -8,6 +8,37 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertFalse(ACPError.connectionClosed.isInvalidParams)
     }
 
+    func testACPErrorExtractsActiveRunHintFromInvalidPromptError() {
+        let error = ACPError.rpcError(
+            "Invalid params",
+            data: .string("session already has active run `run-1`; use _goose/unstable/session/steer")
+        )
+
+        XCTAssertEqual(error.activeRunIDHint, "run-1")
+        XCTAssertFalse(error.isNoActiveRunToSteer)
+    }
+
+    func testACPErrorExtractsActiveRunHintFromMismatchErrorData() {
+        let error = ACPError.rpcError(
+            "Invalid params",
+            data: [
+                "message": "expected active run id `old-run` but found `new-run`",
+                "expectedRunId": "old-run",
+                "actualRunId": "new-run"
+            ]
+        )
+
+        XCTAssertEqual(error.activeRunIDHint, "new-run")
+        XCTAssertFalse(error.isNoActiveRunToSteer)
+    }
+
+    func testACPErrorRecognizesNoActiveRunToSteer() {
+        let error = ACPError.rpcError("Invalid params", data: .string("no active run to steer"))
+
+        XCTAssertNil(error.activeRunIDHint)
+        XCTAssertTrue(error.isNoActiveRunToSteer)
+    }
+
     func testAssistantChunksAppendToStableMessage() {
         var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
 
