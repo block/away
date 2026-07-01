@@ -335,6 +335,25 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertFalse(result.hasMessageActivity)
     }
 
+    func testSessionInfoUpdateExtractsArchivedState() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        let result = reducer.apply(
+            ACPNotification(
+                sessionID: "s1",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "session_info_update",
+                    "_meta": [
+                        "archivedAt": "2026-06-30T20:00:00Z"
+                    ]
+                ])
+            )
+        )
+
+        XCTAssertTrue(result.isArchived)
+        XCTAssertFalse(result.hasMessageActivity)
+    }
+
     func testSessionInfoUpdateWithNullActiveRunIDEndsStreaming() {
         var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
 

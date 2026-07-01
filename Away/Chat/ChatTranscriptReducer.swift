@@ -110,6 +110,7 @@ struct ChatTranscriptReducer {
             result.sessionTitle = update.raw["title"]?.stringValue
             result.updatedAt = update.updatedAt
             result.lastMessageAt = update.lastMessageAt
+            result.isArchived = update.archivedAt != nil
             if let activeRunID = update.activeRunID, activeRunID == nil {
                 finishStreamingMessage()
             }
@@ -317,6 +318,7 @@ struct TranscriptApplyResult: Equatable, Sendable {
     var assistantNotification: AssistantNotification?
     var updatedAt: Date?
     var lastMessageAt: Date?
+    var isArchived = false
     var hasMessageActivity = false
 
     mutating func merge(_ other: TranscriptApplyResult) {
@@ -325,6 +327,7 @@ struct TranscriptApplyResult: Equatable, Sendable {
         assistantNotification = other.assistantNotification ?? assistantNotification
         updatedAt = latest(updatedAt, other.updatedAt)
         lastMessageAt = latest(lastMessageAt, other.lastMessageAt)
+        isArchived = isArchived || other.isArchived
         hasMessageActivity = hasMessageActivity || other.hasMessageActivity
     }
 

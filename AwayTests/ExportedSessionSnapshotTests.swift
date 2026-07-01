@@ -539,6 +539,67 @@ final class ExportedSessionSnapshotTests: XCTestCase {
     }
 
     @MainActor
+    func testExternalArchivedSessionInfoUpdateDoesNotInsertUnknownSession() throws {
+        let existingActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(
+                id: "existing",
+                title: "Existing",
+                updatedAt: existingActivity,
+                lastMessageAt: existingActivity,
+                messageCount: 2
+            )
+        ]
+
+        model.appendPendingNotificationsForTesting([
+            ACPNotification(
+                sessionID: "archived-elsewhere",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "session_info_update",
+                    "title": "Archived Goose2 chat",
+                    "_meta": [
+                        "archivedAt": .string("2026-06-30T21:00:00Z")
+                    ]
+                ])
+            )
+        ])
+
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: nil)
+
+        XCTAssertEqual(model.sessions.map(\.id), ["existing"])
+    }
+
+    @MainActor
+    func testExternalArchivedSessionInfoUpdateRemovesExistingSession() throws {
+        let existingActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let archivedActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(id: "other", title: "Other", updatedAt: existingActivity, messageCount: 2),
+            SessionSummary(id: "archived", title: "Archived", updatedAt: archivedActivity, messageCount: 2)
+        ]
+        model.activeSessionID = "archived"
+
+        model.appendPendingNotificationsForTesting([
+            ACPNotification(
+                sessionID: "archived",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "session_info_update",
+                    "_meta": [
+                        "archivedAt": .string("2026-06-30T22:00:00Z")
+                    ]
+                ])
+            )
+        ])
+
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: nil)
+
+        XCTAssertEqual(model.sessions.map(\.id), ["other"])
+        XCTAssertNil(model.activeSessionID)
+    }
+
+    @MainActor
     func testAuthoritativeReplayDoesNotRefreshSessionActivityTimestamp() throws {
         let olderActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
         let newerActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
@@ -855,6 +916,26 @@ final class ExportedSessionSnapshotTests: XCTestCase {
 
         XCTAssertEqual(model.sessions.map(\.id), ["changed", "newer"])
         XCTAssertEqual(model.sessions.first?.updatedAt, messageActivity)
+    }
+
+    @MainActor
+    func testSessionListRefreshFiltersArchivedSessions() throws {
+        let activeActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let archivedActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+
+        model.replaceSessionsForTesting(with: [
+            SessionSummary(
+                id: "archived",
+                title: "Archived",
+                updatedAt: archivedActivity,
+                archivedAt: archivedActivity,
+                messageCount: 2
+            ),
+            SessionSummary(id: "active", title: "Active", updatedAt: activeActivity, messageCount: 2)
+        ])
+
+        XCTAssertEqual(model.sessions.map(\.id), ["active"])
     }
 
     private func notification(kind: String, messageID: String, text: String) -> ACPNotification {

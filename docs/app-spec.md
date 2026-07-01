@@ -65,6 +65,7 @@ Session list:
 - Keep connection state understated, expanding error details only when connection fails.
 - Preserve refresh and demo background keepalive controls as quiet header actions without adding session creation or server switching UI.
 - Show recent sessions as a clean title-and-timestamp list ordered by last message activity when ACP provides `_meta.lastMessageAt`.
+- Exclude sessions with ACP `_meta.archivedAt` from the active session list; if a live update marks a visible session archived, remove it from the list.
 - Opening or viewing a session must not change its list ordering. Exported snapshots, replay attachment, title patches, and generic view/update metadata may refresh row text, but only real message activity or an ACP-provided last-message timestamp may promote a row.
 - If ACP omits last-message timestamps, `updatedAt` is only a best-effort fallback for first-seen sessions and observed message-count changes; unchanged sessions keep their existing fallback timestamp across refreshes so view-only generic updates do not reorder the list. If ACP also omits message counts, Away cannot distinguish message activity from generic updates and uses `updatedAt` as the remaining server-provided activity signal.
 - Show a sparse empty state with a refresh action if the configured server has no sessions.

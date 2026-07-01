@@ -24,6 +24,10 @@ struct SessionSummary: Identifiable, Equatable, Sendable {
         lastMessageAt ?? updatedAt ?? createdAt
     }
 
+    var isArchived: Bool {
+        archivedAt != nil
+    }
+
     init(
         id: String,
         title: String,

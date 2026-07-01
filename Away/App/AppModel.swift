@@ -764,7 +764,7 @@ final class AppModel {
 
     private func replaceSessions(with listed: [SessionSummary]) {
         let existingByID = Dictionary(sessions.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        sessions = listed.map { listedSession in
+        sessions = listed.filter { !$0.isArchived }.map { listedSession in
             guard let existing = existingByID[listedSession.id] else {
                 return listedSession
             }
@@ -780,6 +780,7 @@ final class AppModel {
         }).last else {
             return
         }
+        guard !summary.isArchived else { return }
         sessions.append(summary)
         sessions.sort(by: SessionSummary.isMoreRecent)
     }
@@ -790,6 +791,10 @@ final class AppModel {
         isAuthoritativeReplay: Bool
     ) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+        if result.isArchived {
+            removeSession(sessionID)
+            return
+        }
         if let title = result.sessionTitle {
             sessions[index].title = title
         }
@@ -837,6 +842,21 @@ final class AppModel {
         }
         if session.updatedAt.map({ date > $0 }) ?? true {
             session.updatedAt = date
+        }
+    }
+
+    private func removeSession(_ sessionID: String) {
+        sessions.removeAll { $0.id == sessionID }
+        messagesBySession.removeValue(forKey: sessionID)
+        runtimeBySession.removeValue(forKey: sessionID)
+        pendingNotifications.removeAll { $0.sessionID == sessionID }
+        queuedPromptsBySession.removeValue(forKey: sessionID)
+        queuedPromptAttachRetrySessionIDs.remove(sessionID)
+        queuedPromptAttachRetryAttemptsBySession.removeValue(forKey: sessionID)
+        queuedPromptDrainRetrySessionIDs.remove(sessionID)
+        drainingQueuedPromptSessionIDs.remove(sessionID)
+        if activeSessionID == sessionID {
+            activeSessionID = nil
         }
     }
 

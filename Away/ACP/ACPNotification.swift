@@ -63,6 +63,12 @@ struct ACPUpdate: Equatable, Sendable {
         return ISO8601DateParsing.parse(meta?["lastMessageAt"]?.stringValue)
             ?? ISO8601DateParsing.parse(raw["lastMessageAt"]?.stringValue)
     }
+
+    var archivedAt: Date? {
+        let meta = raw["_meta"]?.objectValue
+        return ISO8601DateParsing.parse(meta?["archivedAt"]?.stringValue)
+            ?? ISO8601DateParsing.parse(raw["archivedAt"]?.stringValue)
+    }
 }
 
 struct ACPEnvelope: Codable, Equatable, Sendable {
