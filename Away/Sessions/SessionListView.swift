@@ -43,10 +43,7 @@ struct SessionListView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
-                Text("Away")
-                    .font(.system(.largeTitle, design: .rounded, weight: .semibold))
-
-                Spacer(minLength: 16)
+                Spacer(minLength: 0)
 
                 HeaderControls(
                     isKeepaliveEnabled: Binding(

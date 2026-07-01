@@ -61,7 +61,7 @@ The first screen is the usable session list, not a landing page.
 
 Session list:
 
-- Title is `Away`.
+- Do not show a visible title.
 - Keep connection state understated, expanding error details only when connection fails.
 - Preserve refresh and demo background keepalive controls as quiet header actions without adding session creation or server switching UI.
 - Show recent sessions as a clean title-and-timestamp list.
