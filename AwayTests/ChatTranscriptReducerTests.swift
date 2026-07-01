@@ -303,6 +303,172 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertEqual(tool.result, "done")
     }
 
+    func testToolCallBuildsReadableCommandNameFromRawInput() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        _ = reducer.apply(
+            ACPNotification(
+                sessionID: "s1",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "tool_call",
+                    "messageId": "m1",
+                    "toolCallId": "tool1",
+                    "title": "shell",
+                    "status": "in_progress",
+                    "rawInput": [
+                        "command": "sq agent-tools slack search-messages --help | sed -n '1,240p'"
+                    ]
+                ])
+            )
+        )
+
+        guard case .tool(let tool) = reducer.messages[0].content[0] else {
+            return XCTFail("Expected tool content")
+        }
+        XCTAssertEqual(tool.arguments["command"]?.stringValue, "sq agent-tools slack search-messages --help | sed -n '1,240p'")
+        XCTAssertEqual(tool.displayName, "viewing slack search messages help")
+    }
+
+    func testToolUpdatePatchesIdentityRawInputAndChainSummary() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        _ = reducer.apply(
+            ACPNotification(
+                sessionID: "s1",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "tool_call",
+                    "messageId": "m1",
+                    "toolCallId": "tool1",
+                    "title": "slack_search_messages",
+                    "status": "in_progress",
+                    "rawInput": [
+                        "query": "changelog"
+                    ]
+                ])
+            )
+        )
+        _ = reducer.apply(
+            ACPNotification(
+                sessionID: "s1",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "tool_call_update",
+                    "toolCallId": "tool1",
+                    "status": "completed",
+                    "_meta": [
+                        "goose": [
+                            "toolCall": [
+                                "toolName": "search_messages",
+                                "extensionName": "slack"
+                            ],
+                            "toolChainSummary": [
+                                "summary": "checked slack tooling help",
+                                "count": 8
+                            ]
+                        ]
+                    ]
+                ])
+            )
+        )
+
+        guard case .tool(let tool) = reducer.messages[0].content[0] else {
+            return XCTFail("Expected tool content")
+        }
+        XCTAssertEqual(tool.toolName, "search_messages")
+        XCTAssertEqual(tool.extensionName, "slack")
+        XCTAssertEqual(tool.chainSummary, ToolActivityChainSummary(summary: "checked slack tooling help", count: 8))
+        XCTAssertEqual(tool.displayName, "searching slack messages for changelog")
+    }
+
+    func testToolCallUsesMetadataWhenTitleIsGeneric() {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+
+        _ = reducer.apply(
+            ACPNotification(
+                sessionID: "s1",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "tool_call",
+                    "messageId": "m1",
+                    "toolCallId": "tool1",
+                    "title": "Tool",
+                    "status": "in_progress",
+                    "rawInput": [
+                        "query": "changelog"
+                    ],
+                    "_meta": [
+                        "goose": [
+                            "toolCall": [
+                                "toolName": "search_messages",
+                                "extensionName": "slack"
+                            ]
+                        ]
+                    ]
+                ])
+            )
+        )
+
+        guard case .tool(let tool) = reducer.messages[0].content[0] else {
+            return XCTFail("Expected tool content")
+        }
+        XCTAssertEqual(tool.displayName, "searching slack messages for changelog")
+    }
+
+    func testToolMetadataAccessorsReadAlternateShapesAndRejectInvalidSummaries() {
+        let inputUpdate = ACPUpdate(raw: [
+            "input": [
+                "query": "launch"
+            ],
+            "_meta": [
+                "goose": [
+                    "mcpApp": [
+                        "toolName": "search_messages",
+                        "extensionName": "slack"
+                    ],
+                    "toolChainSummary": [
+                        "summary": "   ",
+                        "count": 4
+                    ]
+                ]
+            ]
+        ])
+        let argumentsUpdate = ACPUpdate(raw: [
+            "arguments": [
+                "url": "https://example.com/changelog"
+            ],
+            "_meta": [
+                "goose": [
+                    "toolChainSummary": [
+                        "summary": "checked web resources",
+                        "count": 0
+                    ]
+                ]
+            ]
+        ])
+
+        XCTAssertEqual(inputUpdate.rawInput?["query"]?.stringValue, "launch")
+        XCTAssertEqual(inputUpdate.toolName, "search_messages")
+        XCTAssertEqual(inputUpdate.extensionName, "slack")
+        XCTAssertNil(inputUpdate.toolChainSummary)
+        XCTAssertEqual(argumentsUpdate.rawInput?["url"]?.stringValue, "https://example.com/changelog")
+        XCTAssertNil(argumentsUpdate.toolChainSummary)
+    }
+
+    func testToolDisplayNameCoversURLAndGenericFallback() {
+        let urlTool = ToolActivity(
+            id: "tool-url",
+            name: "fetch",
+            status: "completed",
+            arguments: ["url": "https://developer.apple.com/documentation/swiftui"]
+        )
+        let genericTool = ToolActivity(
+            id: "tool-generic",
+            name: "Tool",
+            status: "completed"
+        )
+
+        XCTAssertEqual(urlTool.displayName, "checking developer.apple.com")
+        XCTAssertEqual(genericTool.displayName, "using tool")
+    }
+
     func testAssistantTextAfterToolCreatesNotificationPreview() {
         var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
 

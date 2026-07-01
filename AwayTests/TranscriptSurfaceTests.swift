@@ -156,6 +156,295 @@ final class TranscriptSurfaceTests: XCTestCase {
         )
     }
 
+    func testRowsCollapseAdjacentToolCallsIntoStableGroup() {
+        let message = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            content: [
+                .text("I will check."),
+                .tool(
+                    makeTool(
+                        id: "tool-1",
+                        name: "shell",
+                        arguments: ["command": "sq agent-tools slack --help"],
+                        chainSummary: ToolActivityChainSummary(summary: "checked slack tooling help", count: 8)
+                    )
+                ),
+                .tool(
+                    makeTool(
+                        id: "tool-2",
+                        name: "shell",
+                        arguments: ["command": "sq agent-tools slack search-messages --help"]
+                    )
+                ),
+                .text("Done.")
+            ]
+        )
+
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [message],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+
+        XCTAssertEqual(rows.count, 3)
+        XCTAssertEqual(rows[0].id, "message:assistant-1::segment:0")
+        guard case .toolGroup(let group) = rows[1] else {
+            return XCTFail("Expected grouped tool row")
+        }
+        XCTAssertEqual(rows[1].id, "tool-group:assistant-1::tool-group:1:tool-1")
+        XCTAssertEqual(group.title, "checked slack tooling help (8 steps)")
+        XCTAssertFalse(group.isExpanded)
+        XCTAssertEqual(group.tools.map(\.id), ["tool-1", "tool-2"])
+        XCTAssertEqual(rows[2].id, "message:assistant-1::segment:3")
+    }
+
+    func testRowsExpandToolGroupIntoOneLineSteps() {
+        let message = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            content: [
+                .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"])),
+                .tool(makeTool(id: "tool-2", name: "Edit", arguments: ["path": "/tmp/two.md"]))
+            ]
+        )
+        let groupID = "assistant-1::tool-group:0:tool-1"
+
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [message],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: [],
+            expandedToolGroupIDs: [groupID]
+        )
+
+        XCTAssertEqual(rows.map(\.id), [
+            "tool-group:assistant-1::tool-group:0:tool-1",
+            "tool-step:assistant-1::tool-group:0:tool-1::tool:0:tool-1",
+            "tool-step:assistant-1::tool-group:0:tool-1::tool:1:tool-2"
+        ])
+        guard case .toolGroup(let group) = rows[0],
+              case .toolStep(let firstStep) = rows[1],
+              case .toolStep(let secondStep) = rows[2]
+        else {
+            return XCTFail("Expected expanded tool group rows")
+        }
+
+        XCTAssertTrue(group.isExpanded)
+        XCTAssertEqual(group.title, "updated files (2 steps)")
+        XCTAssertEqual(firstStep.tool.displayName, "viewing one.md")
+        XCTAssertFalse(firstStep.isLastInGroup)
+        XCTAssertEqual(secondStep.tool.displayName, "updating two.md")
+        XCTAssertTrue(secondStep.isLastInGroup)
+    }
+
+    func testRowsKeepExpandedToolOutputOutOfTranscriptRows() {
+        let largeOutput = String(repeating: "line with command output\n", count: 500)
+        let message = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            content: [
+                .tool(
+                    makeTool(
+                        id: "tool-1",
+                        name: "shell",
+                        arguments: ["command": "cat /tmp/large.log"],
+                        result: largeOutput
+                    )
+                ),
+                .tool(
+                    makeTool(
+                        id: "tool-2",
+                        name: "shell",
+                        arguments: ["command": "tail /tmp/large.log"],
+                        result: largeOutput
+                    )
+                )
+            ]
+        )
+        let groupID = "assistant-1::tool-group:0:tool-1"
+
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [message],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: [],
+            expandedToolGroupIDs: [groupID]
+        )
+
+        XCTAssertEqual(rows.count, 3)
+        XCTAssertTrue(rows.allSatisfy { row in
+            if case .message = row {
+                return false
+            }
+            return true
+        })
+        guard case .toolStep(let firstStep) = rows[1] else {
+            return XCTFail("Expected compact tool step")
+        }
+        XCTAssertEqual(firstStep.tool.result, largeOutput)
+    }
+
+    func testRowsRenderSingleToolCallAsCompactStepWithoutGroup() {
+        let tool = makeTool(
+            id: "tool-1",
+            name: "slack_search_messages",
+            arguments: ["query": "launch blockers"]
+        )
+        let message = ChatMessage(id: "assistant-1", role: .assistant, content: [.tool(tool)])
+
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [message],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+
+        XCTAssertEqual(rows.count, 1)
+        guard case .toolStep(let step) = rows[0] else {
+            return XCTFail("Expected compact tool step")
+        }
+        XCTAssertNil(step.groupID)
+        XCTAssertEqual(step.tool.displayName, "searching slack messages for launch blockers")
+    }
+
+    func testToolGroupStatusAndActiveTitle() {
+        let activeGroup = ToolActivityGroup(
+            id: "group-1",
+            tools: [
+                makeTool(id: "tool-1", name: "Read", status: "completed", arguments: ["path": "/tmp/one.md"]),
+                makeTool(id: "tool-2", name: "Read", status: "in_progress", arguments: ["path": "/tmp/two.md"])
+            ],
+            isExpanded: false
+        )
+        let failedGroup = ToolActivityGroup(
+            id: "group-2",
+            tools: [
+                makeTool(id: "tool-1", name: "Read", status: "completed", arguments: ["path": "/tmp/one.md"]),
+                makeTool(id: "tool-2", name: "Read", status: "failed", arguments: ["path": "/tmp/two.md"]),
+                makeTool(id: "tool-3", name: "Read", status: "in_progress", arguments: ["path": "/tmp/three.md"])
+            ],
+            isExpanded: false
+        )
+
+        XCTAssertEqual(activeGroup.aggregateStatus, "in_progress")
+        XCTAssertEqual(activeGroup.title, "working through 2 steps")
+        XCTAssertEqual(failedGroup.aggregateStatus, "failed")
+        XCTAssertEqual(failedGroup.title, "reviewed files (3 steps)")
+    }
+
+    func testToolGroupFallbackSummaryCategories() {
+        let reviewedFiles = ToolActivityGroup(
+            id: "reviewed",
+            tools: [
+                makeTool(id: "tool-1", name: "List"),
+                makeTool(id: "tool-2", name: "Inspect")
+            ],
+            isExpanded: false
+        )
+        let ranCommands = ToolActivityGroup(
+            id: "commands",
+            tools: [
+                makeTool(id: "tool-1", name: "shell", arguments: ["command": "ls -la"]),
+                makeTool(id: "tool-2", name: "shell", arguments: ["command": "pwd"])
+            ],
+            isExpanded: false
+        )
+        let checkedResources = ToolActivityGroup(
+            id: "resources",
+            tools: [
+                makeTool(id: "tool-1", name: "fetch", arguments: ["url": "https://example.com/one"]),
+                makeTool(id: "tool-2", name: "fetch", arguments: ["url": "https://example.com/two"])
+            ],
+            isExpanded: false
+        )
+        let updatedFiles = ToolActivityGroup(
+            id: "updates",
+            tools: [
+                makeTool(id: "tool-1", name: "Edit", arguments: ["path": "/tmp/one.md"]),
+                makeTool(id: "tool-2", name: "Write", arguments: ["path": "/tmp/two.md"])
+            ],
+            isExpanded: false
+        )
+
+        XCTAssertEqual(reviewedFiles.title, "reviewed files (2 steps)")
+        XCTAssertEqual(ranCommands.title, "ran commands (2 steps)")
+        XCTAssertEqual(checkedResources.title, "checked resources (2 steps)")
+        XCTAssertEqual(updatedFiles.title, "updated files (2 steps)")
+    }
+
+    func testRowsMatchMessageTargetForSegmentedToolTurns() {
+        let message = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            content: [
+                .text("Before tools."),
+                .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"])),
+                .text("After tools.")
+            ]
+        )
+
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [message],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+
+        XCTAssertEqual(rows.map(\.id), [
+            "message:assistant-1::segment:0",
+            "tool-step:assistant-1::tool:1:tool-1",
+            "message:assistant-1::segment:2"
+        ])
+        XCTAssertTrue(rows[0].matchesMessageTarget("assistant-1"))
+        XCTAssertTrue(rows[2].matchesMessageTarget("assistant-1"))
+    }
+
+    func testRowsMatchMessageTargetForToolOnlyTurns() {
+        let groupedMessage = ChatMessage(
+            id: "assistant-group",
+            role: .assistant,
+            content: [
+                .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"])),
+                .tool(makeTool(id: "tool-2", name: "Read", arguments: ["path": "/tmp/two.md"]))
+            ]
+        )
+        let singleToolMessage = ChatMessage(
+            id: "assistant-single",
+            role: .assistant,
+            content: [
+                .tool(makeTool(id: "tool-3", name: "Read", arguments: ["path": "/tmp/three.md"]))
+            ]
+        )
+
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [groupedMessage, singleToolMessage],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+
+        XCTAssertEqual(rows.map(\.id), [
+            "tool-group:assistant-group::tool-group:0:tool-1",
+            "tool-step:assistant-single::tool:0:tool-3"
+        ])
+        XCTAssertTrue(rows[0].matchesMessageTarget("assistant-group"))
+        XCTAssertTrue(rows[1].matchesMessageTarget("assistant-single"))
+    }
+
     func testBottomScrollPolicyRequestsOnlyWhenSettledAndNearBottom() {
         XCTAssertTrue(
             TranscriptBottomScrollPolicy.shouldRequestAfterInitialSettle(canSettleToBottom: true)
@@ -648,6 +937,142 @@ final class TranscriptSurfaceTests: XCTestCase {
         XCTAssertGreaterThan(userHeight, assistantHeight)
     }
 
+    func testToolAnimationPolicyAnimatesToolRowsOnly() {
+        let message = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            content: [
+                .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"])),
+                .tool(makeTool(id: "tool-2", name: "Edit", arguments: ["path": "/tmp/two.md"]))
+            ]
+        )
+        let groupID = "assistant-1::tool-group:0:tool-1"
+        let collapsedRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [message],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+        let expandedRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [message],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: [],
+            expandedToolGroupIDs: [groupID]
+        )
+
+        XCTAssertTrue(
+            TranscriptRowAnimationPolicy.canAnimateIdentityChange(
+                oldRows: collapsedRows,
+                newRows: expandedRows
+            )
+        )
+
+        let changedMessageRows = [
+            TranscriptSurfaceRow.message(
+                ChatMessage(id: "assistant", role: .assistant, content: [.text("Old")])
+            )
+        ]
+        let newMessageRows = [
+            TranscriptSurfaceRow.message(
+                ChatMessage(id: "assistant", role: .assistant, content: [.text("New")])
+            )
+        ]
+        XCTAssertFalse(
+            TranscriptRowAnimationPolicy.canAnimateIdentityChange(
+                oldRows: changedMessageRows,
+                newRows: newMessageRows
+            )
+        )
+        XCTAssertEqual(
+            TranscriptRowAnimationPolicy.reloadAnimation(
+                oldRow: changedMessageRows[0],
+                newRow: newMessageRows[0]
+            ),
+            .none
+        )
+        XCTAssertEqual(
+            TranscriptRowAnimationPolicy.reloadAnimation(
+                oldRow: collapsedRows[0],
+                newRow: expandedRows[0]
+            ),
+            .fade
+        )
+    }
+
+    func testToolAnimationPolicyAnimatesExpandedToolAppendAndTitleUpdate() {
+        let groupID = "assistant-1::tool-group:0:tool-1"
+        let oldMessage = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            content: [
+                .tool(
+                    makeTool(
+                        id: "tool-1",
+                        name: "Read",
+                        arguments: ["path": "/tmp/one.md"],
+                        chainSummary: ToolActivityChainSummary(summary: "reviewed files", count: 2)
+                    )
+                ),
+                .tool(makeTool(id: "tool-2", name: "Read", arguments: ["path": "/tmp/two.md"]))
+            ]
+        )
+        let newMessage = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            content: [
+                .tool(
+                    makeTool(
+                        id: "tool-1",
+                        name: "Read",
+                        arguments: ["path": "/tmp/one.md"],
+                        chainSummary: ToolActivityChainSummary(summary: "reviewed files", count: 3)
+                    )
+                ),
+                .tool(makeTool(id: "tool-2", name: "Read", arguments: ["path": "/tmp/two.md"])),
+                .tool(makeTool(id: "tool-3", name: "Read", arguments: ["path": "/tmp/three.md"]))
+            ]
+        )
+
+        let oldRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [oldMessage],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: [],
+            expandedToolGroupIDs: [groupID]
+        )
+        let newRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [newMessage],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: [],
+            expandedToolGroupIDs: [groupID]
+        )
+
+        XCTAssertTrue(
+            TranscriptRowAnimationPolicy.canAnimateIdentityChange(
+                oldRows: oldRows,
+                newRows: newRows
+            )
+        )
+        XCTAssertEqual(
+            TranscriptRowAnimationPolicy.reloadAnimation(
+                oldRow: oldRows[0],
+                newRow: newRows[0]
+            ),
+            .fade
+        )
+        XCTAssertEqual(newRows.last?.id, "tool-step:assistant-1::tool-group:0:tool-1::tool:2:tool-3")
+    }
+
     @MainActor
     func testCoordinatorHidesOversizedInitialTranscriptUntilBottomSettles() throws {
         let harness = try makeCoordinatorHarness()
@@ -1062,6 +1487,260 @@ final class TranscriptSurfaceTests: XCTestCase {
     }
 
     @MainActor
+    func testCoordinatorPreservesVisibleAnchorWhenAnimatedToolRowsInsertAboveViewport() throws {
+        let harness = try makeCoordinatorHarness()
+        let toolMessage = ChatMessage(
+            id: "assistant-tools",
+            role: .assistant,
+            content: [
+                .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"])),
+                .tool(makeTool(id: "tool-2", name: "Read", arguments: ["path": "/tmp/two.md"]))
+            ]
+        )
+        let collapsedRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [toolMessage] + makeMessages(count: 80),
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+        let expandedRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [toolMessage] + makeMessages(count: 80),
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: [],
+            expandedToolGroupIDs: ["assistant-tools::tool-group:0:tool-1"]
+        )
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: collapsedRows,
+            earlierMessageCount: 0,
+            scrollIntent: TranscriptScrollIntent(target: .bottom, anchor: .bottom, animated: false, sequence: 1)
+        )
+        pumpLayout(for: harness.tableView)
+        harness.tableView.scrollToRow(at: IndexPath(row: 30, section: 0), at: .top, animated: false)
+        harness.tableView.layoutIfNeeded()
+
+        let anchoredIndexPath = try XCTUnwrap(harness.tableView.indexPathsForVisibleRows?.first)
+        let anchoredRowID = collapsedRows[anchoredIndexPath.row].id
+        let anchoredOffset = harness.tableView.contentOffset.y
+            - harness.tableView.rectForRow(at: anchoredIndexPath).minY
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: expandedRows,
+            earlierMessageCount: 0,
+            scrollIntent: nil
+        )
+        pumpLayout(for: harness.tableView)
+
+        let newAnchoredIndexPath = try XCTUnwrap(harness.tableView.indexPathsForVisibleRows?.first)
+        let newAnchoredOffset = harness.tableView.contentOffset.y
+            - harness.tableView.rectForRow(at: newAnchoredIndexPath).minY
+        XCTAssertEqual(expandedRows[newAnchoredIndexPath.row].id, anchoredRowID)
+        XCTAssertLessThan(abs(newAnchoredOffset - anchoredOffset), 2)
+    }
+
+    @MainActor
+    func testCoordinatorPreservesAnchorWhenMessageBecomesSegmentedToolTurn() throws {
+        let harness = try makeCoordinatorHarness()
+        let textMessage = ChatMessage(
+            id: "assistant-target",
+            role: .assistant,
+            content: [.text("I am about to inspect a file.")]
+        )
+        let segmentedMessage = ChatMessage(
+            id: textMessage.id,
+            role: .assistant,
+            content: [
+                .text("I am about to inspect a file."),
+                .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"])),
+                .text("The file looks relevant.")
+            ]
+        )
+        let oldRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: makeMessages(count: 30) + [textMessage] + makeMessages(count: 50, idPrefix: "later"),
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+        let newRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: makeMessages(count: 30) + [segmentedMessage] + makeMessages(count: 50, idPrefix: "later"),
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: oldRows,
+            earlierMessageCount: 0,
+            scrollIntent: TranscriptScrollIntent(target: .bottom, anchor: .bottom, animated: false, sequence: 1)
+        )
+        pumpLayout(for: harness.tableView)
+        harness.tableView.scrollToRow(at: IndexPath(row: 30, section: 0), at: .top, animated: false)
+        harness.tableView.layoutIfNeeded()
+
+        let anchoredIndexPath = try XCTUnwrap(harness.tableView.indexPathsForVisibleRows?.first)
+        XCTAssertEqual(oldRows[anchoredIndexPath.row].id, "message:assistant-target")
+        let anchoredOffset = harness.tableView.contentOffset.y
+            - harness.tableView.rectForRow(at: anchoredIndexPath).minY
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: newRows,
+            earlierMessageCount: 0,
+            scrollIntent: nil
+        )
+        pumpLayout(for: harness.tableView)
+
+        let newAnchoredIndexPath = try XCTUnwrap(harness.tableView.indexPathsForVisibleRows?.first)
+        let newAnchoredOffset = harness.tableView.contentOffset.y
+            - harness.tableView.rectForRow(at: newAnchoredIndexPath).minY
+        XCTAssertEqual(newRows[newAnchoredIndexPath.row].id, "message:assistant-target::segment:0")
+        XCTAssertLessThan(abs(newAnchoredOffset - anchoredOffset), 2)
+        XCTAssertGreaterThan(distanceFromBottom(harness.tableView), 170)
+    }
+
+    @MainActor
+    func testCoordinatorPreservesChunkAnchorWhenMessageBecomesSegmentedToolTurn() throws {
+        let harness = try makeCoordinatorHarness()
+        let longText = String(repeating: "This long assistant response should be chunked before tool content arrives. ", count: 360)
+        let textMessage = ChatMessage(
+            id: "assistant-target",
+            role: .assistant,
+            content: [.text(longText)]
+        )
+        let segmentedMessage = ChatMessage(
+            id: textMessage.id,
+            role: .assistant,
+            content: [
+                .text(longText),
+                .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"]))
+            ]
+        )
+        let oldRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: makeMessages(count: 20) + [textMessage] + makeMessages(count: 40, idPrefix: "later"),
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+        let newRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: makeMessages(count: 20) + [segmentedMessage] + makeMessages(count: 40, idPrefix: "later"),
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+
+        let oldAnchorRow = try XCTUnwrap(oldRows.firstIndex { $0.id == "message:assistant-target::chunk:2" })
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: oldRows,
+            earlierMessageCount: 0,
+            scrollIntent: TranscriptScrollIntent(target: .bottom, anchor: .bottom, animated: false, sequence: 1)
+        )
+        pumpLayout(for: harness.tableView)
+        harness.tableView.scrollToRow(at: IndexPath(row: oldAnchorRow, section: 0), at: .top, animated: false)
+        harness.tableView.layoutIfNeeded()
+
+        let anchoredIndexPath = try XCTUnwrap(harness.tableView.indexPathsForVisibleRows?.first)
+        XCTAssertEqual(oldRows[anchoredIndexPath.row].id, "message:assistant-target::chunk:2")
+        let anchoredOffset = harness.tableView.contentOffset.y
+            - harness.tableView.rectForRow(at: anchoredIndexPath).minY
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: newRows,
+            earlierMessageCount: 0,
+            scrollIntent: nil
+        )
+        pumpLayout(for: harness.tableView)
+
+        let newAnchoredIndexPath = try XCTUnwrap(harness.tableView.indexPathsForVisibleRows?.first)
+        let newAnchoredOffset = harness.tableView.contentOffset.y
+            - harness.tableView.rectForRow(at: newAnchoredIndexPath).minY
+        XCTAssertEqual(newRows[newAnchoredIndexPath.row].id, "message:assistant-target::segment:0::chunk:2")
+        XCTAssertLessThan(abs(newAnchoredOffset - anchoredOffset), 2)
+        XCTAssertGreaterThan(distanceFromBottom(harness.tableView), 170)
+    }
+
+    func testReloadPlanReloadsChangedMessageSurvivorDuringAnimatedToolInsertion() {
+        let createdAt = Date(timeIntervalSince1970: 1)
+        let oldMessage = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            createdAt: createdAt,
+            content: [
+                .text("Before tools."),
+                .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"])),
+                .text("Partial response")
+            ]
+        )
+        let newMessage = ChatMessage(
+            id: "assistant-1",
+            role: .assistant,
+            createdAt: createdAt,
+            content: [
+                .text("Before tools."),
+                .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"])),
+                .text("Complete response"),
+                .tool(makeTool(id: "tool-2", name: "Read", arguments: ["path": "/tmp/two.md"]))
+            ]
+        )
+        let oldRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [oldMessage],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+        let newRows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: [newMessage],
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+
+        XCTAssertTrue(
+            TranscriptRowAnimationPolicy.canAnimateIdentityChange(
+                oldRows: oldRows,
+                newRows: newRows
+            )
+        )
+
+        let sameIndexPlan = TranscriptRowReloadPlan.sameIndexSurvivors(
+            oldRows: oldRows,
+            newRows: newRows
+        )
+        XCTAssertEqual(sameIndexPlan.nonAnimatedIndexPaths, [IndexPath(row: 2, section: 0)])
+        XCTAssertEqual(sameIndexPlan.animatedIndexPaths, [])
+        XCTAssertEqual(sameIndexPlan.rowIDs, ["message:assistant-1::segment:2"])
+
+        let shiftedVisiblePlan = TranscriptRowReloadPlan.visibleSurvivorsByID(
+            oldRows: oldRows,
+            newRows: newRows,
+            visibleIndexPaths: [IndexPath(row: 2, section: 0)],
+            excludingRowIDs: []
+        )
+        XCTAssertEqual(shiftedVisiblePlan.nonAnimatedIndexPaths, [IndexPath(row: 2, section: 0)])
+    }
+
+    @MainActor
     func testCoordinatorAppliesMessageIntentAfterTargetRowAppears() throws {
         let harness = try makeCoordinatorHarness()
         let rows = TranscriptSurfaceRows.make(
@@ -1103,6 +1782,87 @@ final class TranscriptSurfaceTests: XCTestCase {
         pumpLayout(for: harness.tableView)
 
         XCTAssertEqual(harness.tableView.indexPathsForVisibleRows?.first, IndexPath(row: 45, section: 0))
+    }
+
+    @MainActor
+    func testCoordinatorAppliesMessageIntentToSegmentedToolTurn() throws {
+        let harness = try makeCoordinatorHarness()
+        let messages = makeMessages(count: 20) + [
+            ChatMessage(
+                id: "assistant-tools",
+                role: .assistant,
+                content: [
+                    .text("Before tools."),
+                    .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"])),
+                    .text("After tools.")
+                ]
+            )
+        ] + makeMessages(count: 20, idPrefix: "later")
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: messages,
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+        let scrollIntent = TranscriptScrollIntent(
+            target: .message("assistant-tools"),
+            anchor: .top,
+            animated: false,
+            sequence: 1
+        )
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: rows,
+            earlierMessageCount: 0,
+            scrollIntent: scrollIntent
+        )
+        pumpLayout(for: harness.tableView)
+
+        let firstVisibleIndexPath = try XCTUnwrap(harness.tableView.indexPathsForVisibleRows?.first)
+        XCTAssertEqual(rows[firstVisibleIndexPath.row].id, "message:assistant-tools::segment:0")
+    }
+
+    @MainActor
+    func testCoordinatorAppliesMessageIntentToToolOnlyTurn() throws {
+        let harness = try makeCoordinatorHarness()
+        let messages = makeMessages(count: 20) + [
+            ChatMessage(
+                id: "assistant-tools",
+                role: .assistant,
+                content: [
+                    .tool(makeTool(id: "tool-1", name: "Read", arguments: ["path": "/tmp/one.md"])),
+                    .tool(makeTool(id: "tool-2", name: "Read", arguments: ["path": "/tmp/two.md"]))
+                ]
+            )
+        ] + makeMessages(count: 20, idPrefix: "later")
+        let rows = TranscriptSurfaceRows.make(
+            session: nil,
+            messages: messages,
+            isLoading: false,
+            hasAuthoritativeReplay: true,
+            snapshotMessageIDs: [],
+            optimisticUserMessageIDs: []
+        )
+        let scrollIntent = TranscriptScrollIntent(
+            target: .message("assistant-tools"),
+            anchor: .top,
+            animated: false,
+            sequence: 1
+        )
+
+        harness.coordinator.update(
+            tableView: harness.tableView,
+            rows: rows,
+            earlierMessageCount: 0,
+            scrollIntent: scrollIntent
+        )
+        pumpLayout(for: harness.tableView)
+
+        let firstVisibleIndexPath = try XCTUnwrap(harness.tableView.indexPathsForVisibleRows?.first)
+        XCTAssertEqual(rows[firstVisibleIndexPath.row].id, "tool-group:assistant-tools::tool-group:0:tool-1")
     }
 
     @MainActor
@@ -1255,6 +2015,24 @@ final class TranscriptSurfaceTests: XCTestCase {
         (1...count)
             .map { "Paragraph \($0). This paragraph has enough text to wrap across multiple lines while the streaming response grows." }
             .joined(separator: "\n\n")
+    }
+
+    private func makeTool(
+        id: String,
+        name: String,
+        status: String = "completed",
+        arguments: [String: JSONValue] = [:],
+        chainSummary: ToolActivityChainSummary? = nil,
+        result: String? = nil
+    ) -> ToolActivity {
+        ToolActivity(
+            id: id,
+            name: name,
+            status: status,
+            arguments: arguments,
+            chainSummary: chainSummary,
+            result: result
+        )
     }
 
     #if os(iOS)

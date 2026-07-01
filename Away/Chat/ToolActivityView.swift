@@ -4,49 +4,139 @@ struct ToolActivityView: View {
     let tool: ToolActivity
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        ToolActivityStepView(
+            step: ToolActivityStep(
+                id: tool.id,
+                groupID: nil,
+                tool: tool,
+                isLastInGroup: true
+            )
+        )
+    }
+}
+
+struct ToolActivityGroupView: View {
+    let group: ToolActivityGroup
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
             HStack(spacing: 8) {
-                Image(systemName: iconName)
-                    .font(.caption)
-                    .foregroundStyle(iconColor)
-                Text(tool.name)
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-                Text(tool.status.replacingOccurrences(of: "_", with: " "))
-                    .font(.caption)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(group.isExpanded ? 90 : 0))
+                    .frame(width: 16, height: 16)
+                ToolStatusSymbol(status: group.aggregateStatus)
+                Text(group.title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .contentTransition(.opacity)
+                Spacer(minLength: 8)
             }
-            if let result = tool.result, !result.isEmpty {
-                Text(result)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(group.title)
+        .accessibilityValue(group.isExpanded ? "Expanded" : "Collapsed")
+        .animation(.snappy(duration: 0.22), value: group.isExpanded)
+        .animation(.snappy(duration: 0.22), value: group.title)
+    }
+}
+
+struct ToolActivityStepView: View {
+    let step: ToolActivityStep
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            if step.groupID != nil {
+                ToolStepRail(status: step.tool.status, isLast: step.isLastInGroup)
+            } else {
+                ToolStatusSymbol(status: step.tool.status)
+                    .frame(width: 16, height: 18)
+            }
+
+            Text(step.tool.displayName)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .contentTransition(.opacity)
+
+            Spacer(minLength: 8)
+
+            if step.tool.isActive {
+                Text(statusText(step.tool.status))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(4)
+                    .lineLimit(1)
             }
         }
-        .padding(10)
-        .background(Color.secondary.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.snappy(duration: 0.22), value: step.tool.displayName)
+        .animation(.snappy(duration: 0.22), value: step.tool.status)
+    }
+
+    private func statusText(_ status: String) -> String {
+        status.replacingOccurrences(of: "_", with: " ")
+    }
+}
+
+private struct ToolStepRail: View {
+    let status: String
+    let isLast: Bool
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            if !isLast {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.22))
+                    .frame(width: 1)
+                    .frame(maxHeight: .infinity)
+                    .padding(.top, 12)
+            }
+            ToolStatusSymbol(status: status)
+                .frame(width: 16, height: 18)
+        }
+        .frame(width: 16, height: 22)
+    }
+}
+
+private struct ToolStatusSymbol: View {
+    let status: String
+
+    var body: some View {
+        Image(systemName: iconName)
+            .font(.caption)
+            .foregroundStyle(iconColor)
     }
 
     private var iconName: String {
-        switch tool.status {
+        switch status {
         case "completed":
             "checkmark.circle.fill"
         case "failed":
             "xmark.circle.fill"
+        case "stopped":
+            "minus.circle.fill"
+        case "pending":
+            "circle"
         default:
-            "hammer.circle"
+            "clock"
         }
     }
 
     private var iconColor: Color {
-        switch tool.status {
+        switch status {
         case "completed":
-            .green
+            .secondary
         case "failed":
             .red
-        default:
+        case "stopped":
             .orange
+        default:
+            .secondary
         }
     }
 }

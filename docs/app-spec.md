@@ -17,7 +17,7 @@ The remote machine only needs a Goose ACP server. The prototype may reference ex
 - The app sends user prompts to the active session.
 - The app renders a scrollable chat transcript with user and assistant messages.
 - Sending and receiving messages should feel animated and responsive.
-- Tool calls render as compact inline activity rows, not full desktop-client-style rich cards.
+- Tool calls render as compact inline activity rows, not full desktop-client-style rich cards. Adjacent tool calls in an assistant turn are projected as one grouped activity row by default, with deterministic readable names and a step count. The group can expand to one-line step rows, but the iOS v1 presentation does not render full command/output bodies so large tool payloads do not enter the visible SwiftUI row tree.
 - No local persistence is required for sessions, transcripts, or drafts.
 
 ## ACP Transport
@@ -86,6 +86,7 @@ Chat session:
 - Show transcript messages in a ChatGPT/Codex-like mobile layout.
 - Render Markdown in text messages as attributed text.
 - Keep assistant streaming under stable message identity so text grows in place.
+- Animate compact tool group title updates, group expand/collapse row insertions, and appended tool steps within the platform-backed transcript adapter.
 - Auto-scroll only when the user is already near the bottom.
 - Animate optimistic user-posted messages, transient assistant progress, and new tool call bubbles as quick bottom insertions.
 - After a local user message is sent and before assistant content arrives, show a compact animated "Thinking..." progress row.

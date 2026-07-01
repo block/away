@@ -23,6 +23,8 @@ enum TranscriptSurfaceRow: Identifiable, Equatable {
     case sessionShell(SessionSummary)
     case message(ChatMessage)
     case assistantProgress(anchorMessageID: String)
+    case toolGroup(ToolActivityGroup)
+    case toolStep(ToolActivityStep)
 
     var id: String {
         switch self {
@@ -32,7 +34,21 @@ enum TranscriptSurfaceRow: Identifiable, Equatable {
             "message:\(message.id)"
         case .assistantProgress(let anchorMessageID):
             "assistant-progress:\(anchorMessageID)"
+        case .toolGroup(let group):
+            "tool-group:\(group.id)"
+        case .toolStep(let step):
+            "tool-step:\(step.id)"
         }
+    }
+}
+
+extension TranscriptSurfaceRow {
+    func matchesMessageTarget(_ messageID: String) -> Bool {
+        id == "message:\(messageID)"
+            || id.hasPrefix("message:\(messageID)::chunk:")
+            || id.hasPrefix("message:\(messageID)::segment:")
+            || id.hasPrefix("tool-group:\(messageID)::")
+            || id.hasPrefix("tool-step:\(messageID)::")
     }
 }
 
@@ -44,7 +60,8 @@ enum TranscriptSurfaceRows {
         hasAuthoritativeReplay: Bool,
         snapshotMessageIDs: Set<String>,
         optimisticUserMessageIDs: Set<String>,
-        showsAssistantProgress: Bool = false
+        showsAssistantProgress: Bool = false,
+        expandedToolGroupIDs: Set<String> = []
     ) -> [TranscriptSurfaceRow] {
         let presentedMessages = TranscriptOpeningPresentationPolicy.presentedMessages(
             messages,
@@ -54,17 +71,115 @@ enum TranscriptSurfaceRows {
             optimisticUserMessageIDs: optimisticUserMessageIDs
         )
 
-        var rows = presentedMessages.flatMap(rows)
+        var projectedRows = presentedMessages.flatMap { message in
+            rows(for: message, expandedToolGroupIDs: expandedToolGroupIDs)
+        }
         if showsAssistantProgress,
            let lastMessage = presentedMessages.last,
            lastMessage.role == .user,
            optimisticUserMessageIDs.contains(lastMessage.id) {
-            rows.append(.assistantProgress(anchorMessageID: lastMessage.id))
+            projectedRows.append(.assistantProgress(anchorMessageID: lastMessage.id))
+        }
+        return projectedRows
+    }
+
+    private static func rows(
+        for message: ChatMessage,
+        expandedToolGroupIDs: Set<String>
+    ) -> [TranscriptSurfaceRow] {
+        guard message.role == .assistant,
+              message.content.contains(where: \.isTool)
+        else {
+            return messageRows(for: message)
+        }
+
+        var rows: [TranscriptSurfaceRow] = []
+        var segmentStartIndex: Int?
+        var segmentContent: [ChatContent] = []
+        var toolBuffer: [(index: Int, tool: ToolActivity)] = []
+
+        func flushSegment(endingAt endIndex: Int) {
+            guard !segmentContent.isEmpty,
+                  let startIndex = segmentStartIndex
+            else {
+                return
+            }
+
+            var segmentMessage = message
+            segmentMessage.id = "\(message.id)::segment:\(startIndex)"
+            segmentMessage.content = segmentContent
+            segmentMessage.isStreaming = message.isStreaming && endIndex == message.content.count - 1
+            rows.append(contentsOf: messageRows(for: segmentMessage))
+            segmentStartIndex = nil
+            segmentContent = []
+        }
+
+        func flushTools() {
+            guard !toolBuffer.isEmpty else {
+                return
+            }
+
+            if toolBuffer.count == 1, let item = toolBuffer.first {
+                rows.append(
+                    .toolStep(
+                        ToolActivityStep(
+                            id: "\(message.id)::tool:\(item.index):\(item.tool.id)",
+                            groupID: nil,
+                            tool: item.tool,
+                            isLastInGroup: true
+                        )
+                    )
+                )
+            } else if let firstItem = toolBuffer.first {
+                let groupID = "\(message.id)::tool-group:\(firstItem.index):\(firstItem.tool.id)"
+                let tools = toolBuffer.map(\.tool)
+                let group = ToolActivityGroup(
+                    id: groupID,
+                    tools: tools,
+                    isExpanded: expandedToolGroupIDs.contains(groupID)
+                )
+                rows.append(.toolGroup(group))
+                if group.isExpanded {
+                    rows.append(contentsOf: toolBuffer.enumerated().map { offset, item in
+                        .toolStep(
+                            ToolActivityStep(
+                                id: "\(groupID)::tool:\(item.index):\(item.tool.id)",
+                                groupID: groupID,
+                                tool: item.tool,
+                                isLastInGroup: offset == toolBuffer.count - 1
+                            )
+                        )
+                    })
+                }
+            }
+
+            toolBuffer = []
+        }
+
+        for (index, content) in message.content.enumerated() {
+            switch content {
+            case .tool(let tool):
+                flushSegment(endingAt: index - 1)
+                toolBuffer.append((index: index, tool: tool))
+            case .text, .image, .system:
+                flushTools()
+                if segmentStartIndex == nil {
+                    segmentStartIndex = index
+                }
+                segmentContent.append(content)
+            }
+        }
+
+        flushSegment(endingAt: message.content.count - 1)
+        flushTools()
+
+        if rows.isEmpty {
+            return [.message(message)]
         }
         return rows
     }
 
-    private static func rows(for message: ChatMessage) -> [TranscriptSurfaceRow] {
+    private static func messageRows(for message: ChatMessage) -> [TranscriptSurfaceRow] {
         guard message.role == .assistant,
               message.content.count == 1,
               case .text(let text) = message.content[0]
@@ -82,6 +197,15 @@ enum TranscriptSurfaceRows {
             chunkedMessage.isStreaming = message.isStreaming && index == chunks.count - 1
             return .message(chunkedMessage)
         }
+    }
+}
+
+private extension ChatContent {
+    var isTool: Bool {
+        if case .tool = self {
+            return true
+        }
+        return false
     }
 }
 
@@ -347,6 +471,8 @@ struct TranscriptSurface: View {
     let onReachTop: () -> Void
     let onNearBottomChanged: (Bool) -> Void
 
+    @State private var expandedToolGroupIDs: Set<String> = []
+
     var body: some View {
         let rows = TranscriptSurfaceRows.make(
             session: session,
@@ -355,7 +481,8 @@ struct TranscriptSurface: View {
             hasAuthoritativeReplay: hasAuthoritativeReplay,
             snapshotMessageIDs: snapshotMessageIDs,
             optimisticUserMessageIDs: optimisticUserMessageIDs,
-            showsAssistantProgress: showsAssistantProgress
+            showsAssistantProgress: showsAssistantProgress,
+            expandedToolGroupIDs: expandedToolGroupIDs
         )
 
         #if os(iOS)
@@ -366,15 +493,27 @@ struct TranscriptSurface: View {
             earlierMessageCount: earlierMessageCount,
             scrollIntent: scrollIntent,
             onReachTop: onReachTop,
-            onNearBottomChanged: onNearBottomChanged
+            onNearBottomChanged: onNearBottomChanged,
+            onToggleToolGroup: toggleToolGroup
         )
         #else
         SwiftUITranscriptSurfaceFallback(
             rows: rows,
             scrollIntent: scrollIntent,
-            onNearBottomChanged: onNearBottomChanged
+            onNearBottomChanged: onNearBottomChanged,
+            onToggleToolGroup: toggleToolGroup
         )
         #endif
+    }
+
+    private func toggleToolGroup(_ groupID: String) {
+        withAnimation(.snappy(duration: 0.22)) {
+            if expandedToolGroupIDs.contains(groupID) {
+                expandedToolGroupIDs.remove(groupID)
+            } else {
+                expandedToolGroupIDs.insert(groupID)
+            }
+        }
     }
 }
 
@@ -394,12 +533,18 @@ private extension TranscriptSurfaceRow {
     }
 
     var containsToolContent: Bool {
-        guard let message else { return false }
-        return message.content.contains {
+        switch self {
+        case .toolGroup, .toolStep:
+            return true
+        case .sessionShell, .assistantProgress:
+            return false
+        case .message(let message):
+            return message.content.contains {
             if case .tool = $0 {
                 return true
             }
             return false
+            }
         }
     }
 
@@ -426,6 +571,7 @@ private extension ChatContent {
 struct TranscriptSurfaceRowView: View {
     let row: TranscriptSurfaceRow
     var animatedContentIDs: Set<String> = []
+    var onToggleToolGroup: (String) -> Void = { _ in }
 
     var body: some View {
         switch row {
@@ -441,6 +587,17 @@ struct TranscriptSurfaceRowView: View {
             AssistantProgressRowView()
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
+        case .toolGroup(let group):
+            ToolActivityGroupView(
+                group: group,
+                onToggle: { onToggleToolGroup(group.id) }
+            )
+            .padding(.horizontal, 14)
+            .padding(.vertical, 4)
+        case .toolStep(let step):
+            ToolActivityStepView(step: step)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 3)
         }
     }
 }
@@ -492,6 +649,7 @@ private struct SwiftUITranscriptSurfaceFallback: View {
     let rows: [TranscriptSurfaceRow]
     let scrollIntent: TranscriptScrollIntent?
     let onNearBottomChanged: (Bool) -> Void
+    let onToggleToolGroup: (String) -> Void
 
     var body: some View {
         // Placeholder for future non-iOS targets. A native macOS adapter should implement
@@ -500,7 +658,10 @@ private struct SwiftUITranscriptSurfaceFallback: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(rows) { row in
-                        TranscriptSurfaceRowView(row: row)
+                        TranscriptSurfaceRowView(
+                            row: row,
+                            onToggleToolGroup: onToggleToolGroup
+                        )
                     }
                 }
             }
@@ -520,7 +681,7 @@ private struct SwiftUITranscriptSurfaceFallback: View {
         let targetID: String?
         switch intent.target {
         case .message(let id):
-            targetID = "message:\(id)"
+            targetID = rows.first(where: { $0.matchesMessageTarget(id) })?.id
         case .bottom:
             targetID = rows.last?.id
         }
