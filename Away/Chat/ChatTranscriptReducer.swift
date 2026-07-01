@@ -43,9 +43,8 @@ struct ChatTranscriptReducer {
             reducer.appendOptimisticUserMessage(message)
         }
 
-        if reducer.runtime.activeRunID == nil {
-            reducer.finishStreamingMessage()
-        }
+        reducer.runtime.activeRunID = nil
+        reducer.finishStreamingMessage()
 
         reducer.runtime.hasAuthoritativeReplay = true
         reducer.runtime.hasTailSnapshot = false
@@ -128,7 +127,6 @@ struct ChatTranscriptReducer {
             result.sessionTitle = update.raw["title"]?.stringValue
             if let activeRunID = update.activeRunID, activeRunID == nil {
                 finishStreamingMessage()
-                result.didCompleteRun = true
             }
 
         case "usage_update", "config_option_update":
@@ -137,7 +135,6 @@ struct ChatTranscriptReducer {
         case "task_complete", "turn_complete", "session_idle", "agent_turn_complete":
             runtime.activeRunID = nil
             finishStreamingMessage()
-            result.didCompleteRun = true
 
         default:
             break
@@ -341,13 +338,11 @@ struct TranscriptApplyResult: Equatable, Sendable {
     var subtitle: String?
     var sessionTitle: String?
     var assistantNotification: AssistantNotification?
-    var didCompleteRun = false
 
     mutating func merge(_ other: TranscriptApplyResult) {
         subtitle = other.subtitle ?? subtitle
         sessionTitle = other.sessionTitle ?? sessionTitle
         assistantNotification = other.assistantNotification ?? assistantNotification
-        didCompleteRun = didCompleteRun || other.didCompleteRun
     }
 }
 

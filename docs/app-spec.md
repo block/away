@@ -16,7 +16,6 @@ The remote machine only needs a Goose ACP server. The prototype may reference ex
 - The app receives live ACP session updates while connected.
 - Because SSH stdio ACP updates are scoped to the client process, Away also performs foreground near-real-time refreshes of `session/list` and the already-open session's `session/load` replay so sessions and messages created by other Goose clients appear without manual refresh.
 - Archived sessions returned by ACP must be removed from Away's active session list during the same foreground refresh path. A session archived from Goose2 should disappear from Away without tapping refresh and should not be reintroduced by stale local activity state.
-- If the already-open session has an assistant response running from another Goose client, replay refreshes should keep the assistant message in a streaming/running state and continue polling until ACP reports the run is idle or complete.
 - The app sends user prompts to the active session.
 - The app renders a scrollable chat transcript with user and assistant messages.
 - Sending and receiving messages should feel animated and responsive.

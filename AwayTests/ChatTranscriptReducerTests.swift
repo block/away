@@ -368,7 +368,7 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertNil(replay.runtime.activeRunID)
     }
 
-    func testAuthoritativeReplayKeepsTrailingAssistantMessageStreamingWhenReplayHasActiveRunID() {
+    func testAuthoritativeReplaySettlesTrailingAssistantMessageEvenWhenReplayHasActiveRunID() {
         let replay = ChatTranscriptReducer.authoritativeReplay(
             notifications: [
                 ACPNotification(
@@ -387,45 +387,9 @@ final class ChatTranscriptReducerTests: XCTestCase {
         )
 
         XCTAssertEqual(replay.messages.map(\.id), ["a1"])
-        XCTAssertTrue(replay.messages[0].isStreaming)
-        XCTAssertEqual(replay.runtime.streamingMessageID, "a1")
-        XCTAssertEqual(replay.runtime.activeRunID, "run-1")
-    }
-
-    func testAuthoritativeReplaySettlesTrailingAssistantMessageWhenReplayCompletesRun() {
-        let replay = ChatTranscriptReducer.authoritativeReplay(
-            notifications: [
-                ACPNotification(
-                    sessionID: "s1",
-                    update: ACPUpdate(raw: [
-                        "sessionUpdate": "session_info_update",
-                        "_meta": [
-                            "goose": [
-                                "activeRunId": "run-1"
-                            ]
-                        ]
-                    ])
-                ),
-                notification(kind: "agent_message_chunk", messageID: "a1", text: "done"),
-                ACPNotification(
-                    sessionID: "s1",
-                    update: ACPUpdate(raw: [
-                        "sessionUpdate": "session_info_update",
-                        "_meta": [
-                            "goose": [
-                                "activeRunId": .null
-                            ]
-                        ]
-                    ])
-                )
-            ]
-        )
-
-        XCTAssertEqual(replay.messages.map(\.id), ["a1"])
         XCTAssertFalse(replay.messages[0].isStreaming)
         XCTAssertNil(replay.runtime.streamingMessageID)
         XCTAssertNil(replay.runtime.activeRunID)
-        XCTAssertTrue(replay.result.didCompleteRun)
     }
 
     private func notification(
