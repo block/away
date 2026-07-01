@@ -15,6 +15,7 @@ The remote machine only needs a Goose ACP server. It does not require a companio
 - Session creation is out of scope.
 - The app receives live ACP session updates while connected.
 - Because SSH stdio ACP updates are scoped to the client process, Away also performs foreground near-real-time refreshes of `session/list` and the already-open session's `session/load` replay so sessions and messages created by other Goose clients appear without manual refresh.
+- Archived sessions returned by ACP must be removed from Away's active session list during the same foreground refresh path. A session archived from Goose2 should disappear from Away without tapping refresh and should not be reintroduced by stale local activity state.
 - The app sends user prompts to the active session.
 - The app renders a scrollable chat transcript with user and assistant messages.
 - Sending and receiving messages should feel animated and responsive.

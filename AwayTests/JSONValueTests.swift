@@ -64,6 +64,36 @@ final class JSONValueTests: XCTestCase {
         XCTAssertEqual(notification.update.createdAt, Date(timeIntervalSince1970: 1_782_859_265))
     }
 
+    func testSessionSummaryReadsArchivedMetadataVariants() throws {
+        let data = """
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "sessions": [
+              {
+                "sessionId": "camel",
+                "_meta": {
+                  "archivedAt": "2026-06-30T23:44:31.986514+00:00"
+                }
+              },
+              {
+                "id": "snake",
+                "archived_at": "2026-06-30T23:45:00+00:00"
+              }
+            ]
+          }
+        }
+        """.data(using: .utf8)!
+
+        let envelope = try JSONDecoder().decode(ACPEnvelope.self, from: data)
+        let sessions = try XCTUnwrap(envelope.result?["sessions"]?.arrayValue?.compactMap(SessionSummary.init(json:)))
+
+        XCTAssertEqual(sessions.map(\.id), ["camel", "snake"])
+        XCTAssertEqual(sessions[0].archivedAt, ISO8601DateParsing.parse("2026-06-30T23:44:31.986514+00:00"))
+        XCTAssertEqual(sessions[1].archivedAt, ISO8601DateParsing.parse("2026-06-30T23:45:00+00:00"))
+    }
+
     func testDemoConfigDefaultsToSSHStdio() {
         let config = RemoteConnectionConfig.demo(environment: [:])
 

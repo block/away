@@ -191,8 +191,13 @@ final class AppModel {
     }
 
     private func publish(listedSessions: [SessionSummary]) {
+        let archivedSessionIDs = Set(listedSessions.compactMap { session in
+            session.archivedAt == nil ? nil : session.id
+        })
+        clearStateForArchivedSessions(archivedSessionIDs)
+        let activeSessions = listedSessions.filter { $0.archivedAt == nil }
         let currentSessionsByID = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
-        let merged = listedSessions.map { listed in
+        let merged = activeSessions.map { listed in
             var session = listed
             let runtime = runtimeBySession[session.id]
             let hasLocalActivity = runtime?.activeRunID != nil
@@ -209,6 +214,30 @@ final class AppModel {
             return session
         }
         sessions = merged.sorted(by: SessionSummary.isMoreRecent)
+    }
+
+    private func clearStateForArchivedSessions(_ sessionIDs: Set<String>) {
+        guard !sessionIDs.isEmpty else { return }
+
+        for sessionID in sessionIDs {
+            runtimeBySession.removeValue(forKey: sessionID)
+            messagesBySession.removeValue(forKey: sessionID)
+            earlierMessagesBySession.removeValue(forKey: sessionID)
+            draftBySession.removeValue(forKey: sessionID)
+            queuedPromptsBySession.removeValue(forKey: sessionID)
+            openSessionTokens.removeValue(forKey: sessionID)
+            queuedPromptAttachRetrySessionIDs.remove(sessionID)
+            queuedPromptAttachRetryAttemptsBySession.removeValue(forKey: sessionID)
+            drainingQueuedPromptSessionIDs.remove(sessionID)
+            queuedPromptDrainRetrySessionIDs.remove(sessionID)
+            silentReplaySessionIDs.remove(sessionID)
+            outboundPromptSessionIDs.remove(sessionID)
+        }
+        pendingNotifications.removeAll { sessionIDs.contains($0.sessionID) }
+
+        if let activeSessionID, sessionIDs.contains(activeSessionID) {
+            self.activeSessionID = nil
+        }
     }
 
     private func later(_ lhs: Date?, _ rhs: Date?) -> Date? {
@@ -940,6 +969,10 @@ final class AppModel {
 
 #if DEBUG
 extension AppModel {
+    func publishListedSessionsForTesting(_ sessions: [SessionSummary]) {
+        publish(listedSessions: sessions)
+    }
+
     func publishSnapshotForTesting(_ snapshot: ExportedSessionSnapshot, for sessionID: String) {
         publish(snapshot: snapshot, for: sessionID)
     }
