@@ -6,9 +6,13 @@ struct ComposerView: View {
     let statusLabel: String?
     let onSend: () -> Void
 
+    private var shouldShowSteeringLabel: Bool {
+        ComposerStatusPolicy.shouldShowSteeringLabel(isSteering: isSteering, draftText: text)
+    }
+
     var body: some View {
         VStack(spacing: 6) {
-            if isSteering || statusLabel != nil {
+            if shouldShowSteeringLabel || statusLabel != nil {
                 HStack(spacing: 6) {
                     Image(systemName: statusLabel == nil ? "arrow.triangle.2.circlepath" : "clock")
                     Text(statusLabel ?? "Steering active run")
@@ -40,5 +44,11 @@ struct ComposerView: View {
             .padding(.bottom, 10)
             .background(.bar)
         }
+    }
+}
+
+enum ComposerStatusPolicy {
+    static func shouldShowSteeringLabel(isSteering: Bool, draftText: String) -> Bool {
+        isSteering && !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }

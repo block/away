@@ -252,6 +252,33 @@ final class TranscriptSurfaceTests: XCTestCase {
         )
     }
 
+    func testComposerShowsSteeringLabelOnlyWhenDraftHasText() {
+        XCTAssertFalse(
+            ComposerStatusPolicy.shouldShowSteeringLabel(
+                isSteering: true,
+                draftText: ""
+            )
+        )
+        XCTAssertFalse(
+            ComposerStatusPolicy.shouldShowSteeringLabel(
+                isSteering: true,
+                draftText: " \n\t "
+            )
+        )
+        XCTAssertFalse(
+            ComposerStatusPolicy.shouldShowSteeringLabel(
+                isSteering: false,
+                draftText: "steer this run"
+            )
+        )
+        XCTAssertTrue(
+            ComposerStatusPolicy.shouldShowSteeringLabel(
+                isSteering: true,
+                draftText: "steer this run"
+            )
+        )
+    }
+
     func testAnimationPolicyRecognizesOptimisticUserInsertionOnlyAtFollowedBottom() {
         let oldRows = [
             TranscriptSurfaceRow.message(ChatMessage(id: "assistant-1", role: .assistant, content: [.text("Ready")]))
