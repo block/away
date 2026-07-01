@@ -2,6 +2,12 @@ import XCTest
 @testable import Away
 
 final class ChatTranscriptReducerTests: XCTestCase {
+    func testACPErrorRecognizesOnlyExactInvalidParamsRPCError() {
+        XCTAssertTrue(ACPError.rpcError("Invalid params").isInvalidParams)
+        XCTAssertFalse(ACPError.rpcError("Invalid request").isInvalidParams)
+        XCTAssertFalse(ACPError.connectionClosed.isInvalidParams)
+    }
+
     func testAssistantChunksAppendToStableMessage() {
         var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
 

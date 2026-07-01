@@ -27,6 +27,8 @@ struct ComposerView: View {
                 TextField("Message Goose", text: $text, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...6)
+                    .submitLabel(.send)
+                    .onSubmit(onSend)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .background(Color.secondary.opacity(0.12))

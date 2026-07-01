@@ -601,11 +601,17 @@ final class AppModel {
 
             let activeRunID = runtimeBySession[sessionID]?.activeRunID
             if let activeRunID {
-                let newRunID = try await client.steer(sessionID: sessionID, expectedRunID: activeRunID, text: text)
-                runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = newRunID
+                do {
+                    let newRunID = try await client.steer(sessionID: sessionID, expectedRunID: activeRunID, text: text)
+                    runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = newRunID
+                } catch let error as ACPError where error.isInvalidParams {
+                    runtimeBySession[sessionID, default: SessionRuntime()].activeRunID = nil
+                    try await client.sendPrompt(sessionID: sessionID, messageID: messageID, text: text)
+                }
             } else {
                 try await client.sendPrompt(sessionID: sessionID, messageID: messageID, text: text)
             }
+            runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = nil
             return true
         } catch {
             runtimeBySession[sessionID, default: SessionRuntime()].errorMessage = error.localizedDescription

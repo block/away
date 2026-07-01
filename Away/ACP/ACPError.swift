@@ -21,4 +21,9 @@ enum ACPError: LocalizedError, Equatable {
             "Timed out waiting for \(method)."
         }
     }
+
+    var isInvalidParams: Bool {
+        guard case .rpcError(let message) = self else { return false }
+        return message == "Invalid params"
+    }
 }
