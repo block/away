@@ -6,7 +6,7 @@ This is the living behavior spec for the prototype. Update it when product behav
 
 Away is a standalone iOS 26+ SwiftUI prototype for remotely controlling existing Goose sessions over ACP Plus.
 
-The remote machine only needs a Goose ACP server. It does not require a companion desktop app.
+The remote machine only needs a Goose ACP server. The prototype may reference existing Goose client behavior while being built, but the app remains a separate codebase.
 
 ## Core Behavior
 
@@ -31,8 +31,8 @@ goose acp
 The app uses an `ACPTransport` abstraction so session and chat UI are not tied to a concrete transport. Supported prototype transports are:
 
 - SSH stdio, the default demo path.
-- SSH-forwarded WebSocket, retained as a fallback path.
-- Direct WebSocket, retained as a local development shortcut.
+- SSH-forwarded WebSocket, retained as a legacy debug path.
+- Direct WebSocket, retained as a legacy local development shortcut.
 
 The app speaks JSON-RPC 2.0 ACP messages over the selected transport. The core ACP surface is:
 
@@ -62,9 +62,10 @@ The first screen is the usable session list, not a landing page.
 Session list:
 
 - Title is `Away`.
-- Show connection state.
-- Show recent sessions with title, snippet or path, relative time, and navigation affordance.
-- Show a sparse empty state if the configured server has no sessions.
+- Keep connection state understated, expanding error details only when connection fails.
+- Preserve refresh and demo background keepalive controls as quiet header actions without adding session creation or server switching UI.
+- Show recent sessions as a clean title-and-timestamp list.
+- Show a sparse empty state with a refresh action if the configured server has no sessions.
 
 Chat session:
 
@@ -77,7 +78,7 @@ Chat session:
 - Re-entering a session with an already authoritative, non-empty transcript should reuse the loaded transcript instead of starting another full `session/load` replay.
 - Initial bottom settling should be a bounded, non-animated scroll intent handled by the transcript adapter after load completion or tail-snapshot publication. Do not keep scroll-geometry state updates in the SwiftUI transcript path that can drive layout feedback on large conversations.
 - If a user sends while an existing session is still attaching and `session/prompt` cannot be proven safe before load completion, keep the UI responsive with a local user bubble and queue the prompt until replay attachment completes.
-- Show transcript messages in a modern mobile chat layout.
+- Show transcript messages in a ChatGPT/Codex-like mobile layout.
 - Render Markdown in text messages as attributed text.
 - Keep assistant streaming under stable message identity so text grows in place.
 - Auto-scroll only when the user is already near the bottom.
@@ -102,7 +103,7 @@ For behavior changes:
 - Run focused unit tests when reducer, parsing, or transport behavior changes.
 - Run the app in Simulator for visible or end-to-end behavior changes.
 - Validate against a real local Goose ACP target when protocol behavior changes.
-- Use screenshots when useful for UI review.
+- Use the Codex in-app browser mirror or screenshots when useful for UI review.
 
 Do not require physical-device testing for prototype completion.
 

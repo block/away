@@ -43,6 +43,9 @@
 		A00000000000000000000034 /* ChatTranscriptReducerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000134 /* ChatTranscriptReducerTests.swift */; };
 		A00000000000000000000035 /* JSONValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000135 /* JSONValueTests.swift */; };
 		A00000000000000000000036 /* NotificationContentExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A00000000000000000000142 /* NotificationContentExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A00000000000000000000037 /* SessionTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000137 /* SessionTimestampFormatter.swift */; };
+		A00000000000000000000038 /* SessionTimestampFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000138 /* SessionTimestampFormatterTests.swift */; };
+		A00000000000000000000039 /* SessionListPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000139 /* SessionListPresentationTests.swift */; };
 		C00000000000000000000001 /* ContinuedProcessingDemoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000101 /* ContinuedProcessingDemoService.swift */; };
 		B00000000000000000000001 /* SSHSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000101 /* SSHSupport.swift */; };
 		B00000000000000000000002 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000201 /* NIOSSH */; };
@@ -132,6 +135,9 @@
 		A00000000000000000000134 /* ChatTranscriptReducerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTranscriptReducerTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000135 /* JSONValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValueTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000136 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00000000000000000000137 /* SessionTimestampFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTimestampFormatter.swift; sourceTree = "<group>"; };
+		A00000000000000000000138 /* SessionTimestampFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTimestampFormatterTests.swift; sourceTree = "<group>"; };
+		A00000000000000000000139 /* SessionListPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListPresentationTests.swift; sourceTree = "<group>"; };
 		A00000000000000000000140 /* Away.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Away.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000141 /* AwayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AwayTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000142 /* NotificationContentExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationContentExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -182,12 +188,12 @@
 		A00000000000000000000162 /* App */ = {isa = PBXGroup; children = (A00000000000000000000100, A00000000000000000000101, A00000000000000000000102, A00000000000000000000103, A00000000000000000000104, A00000000000000000000105); path = App; sourceTree = "<group>"; };
 		A00000000000000000000163 /* ACP */ = {isa = PBXGroup; children = (A00000000000000000000108, A00000000000000000000109, A00000000000000000000110, A00000000000000000000111, A00000000000000000000118); path = ACP; sourceTree = "<group>"; };
 		A00000000000000000000164 /* Connection */ = {isa = PBXGroup; children = (A00000000000000000000112, A00000000000000000000113, A00000000000000000000114, A00000000000000000000115, A00000000000000000000116, A00000000000000000000117, B00000000000000000000101); path = Connection; sourceTree = "<group>"; };
-		A00000000000000000000165 /* Sessions */ = {isa = PBXGroup; children = (A00000000000000000000119, A00000000000000000000120, A00000000000000000000121, A00000000000000000000122); path = Sessions; sourceTree = "<group>"; };
+		A00000000000000000000165 /* Sessions */ = {isa = PBXGroup; children = (A00000000000000000000119, A00000000000000000000120, A00000000000000000000121, A00000000000000000000122, A00000000000000000000137); path = Sessions; sourceTree = "<group>"; };
 		A00000000000000000000166 /* Chat */ = {isa = PBXGroup; children = (A00000000000000000000123, A00000000000000000000124, A00000000000000000000125, D00000000000000000000101, A00000000000000000000126, A00000000000000000000127, E00000000000000000000101, E00000000000000000000102, A00000000000000000000128, A00000000000000000000129, A00000000000000000000130); path = Chat; sourceTree = "<group>"; };
 		A00000000000000000000167 /* Notifications */ = {isa = PBXGroup; children = (A00000000000000000000131); path = Notifications; sourceTree = "<group>"; };
 		A00000000000000000000168 /* Background */ = {isa = PBXGroup; children = (A00000000000000000000132, C00000000000000000000101); path = Background; sourceTree = "<group>"; };
 		A00000000000000000000169 /* NotificationContentExtension */ = {isa = PBXGroup; children = (A00000000000000000000136, A00000000000000000000133); path = NotificationContentExtension; sourceTree = "<group>"; };
-		A00000000000000000000170 /* AwayTests */ = {isa = PBXGroup; children = (A00000000000000000000134, D00000000000000000000102, E00000000000000000000103, A00000000000000000000135, F00000000000000000000101, B00000000000000000000102, B00000000000000000000103); path = AwayTests; sourceTree = "<group>"; };
+		A00000000000000000000170 /* AwayTests */ = {isa = PBXGroup; children = (A00000000000000000000134, D00000000000000000000102, E00000000000000000000103, A00000000000000000000135, F00000000000000000000101, A00000000000000000000138, A00000000000000000000139, B00000000000000000000102, B00000000000000000000103); path = AwayTests; sourceTree = "<group>"; };
 		A00000000000000000000173 /* Support */ = {isa = PBXGroup; children = (A00000000000000000000106, A00000000000000000000107); path = Support; sourceTree = "<group>"; };
 		A00000000000000000000180 /* Products */ = {isa = PBXGroup; children = (A00000000000000000000140, A00000000000000000000141, A00000000000000000000142); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
@@ -317,6 +323,7 @@
 				A00000000000000000000020,
 				A00000000000000000000021,
 				A00000000000000000000022,
+				A00000000000000000000037,
 				A00000000000000000000023,
 				A00000000000000000000024,
 				A00000000000000000000025,
@@ -334,7 +341,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A00000000000000000000191 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000034, D00000000000000000000002, E00000000000000000000003, A00000000000000000000035, F00000000000000000000001, B00000000000000000000005, B00000000000000000000006); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000191 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000034, D00000000000000000000002, E00000000000000000000003, A00000000000000000000035, F00000000000000000000001, A00000000000000000000038, A00000000000000000000039, B00000000000000000000005, B00000000000000000000006); runOnlyForDeploymentPostprocessing = 0; };
 		A00000000000000000000192 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000033); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

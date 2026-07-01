@@ -2,7 +2,7 @@
 
 **Away** is a prototype iOS remote control for [goose](https://github.com/aaif-goose/goose).
 
-Away connects to an existing goose ACP server and provides a mobile chat-style surface for listing
+Away connects to an existing Goose ACP server and provides a mobile chat-style surface for listing
 sessions, opening transcripts, and sending prompts.
 
 ## Requirements
@@ -52,3 +52,9 @@ xcodebuild test \
   -scheme Away \
   -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
+
+## Docs
+
+- `docs/app-spec.md` is the living product and behavior spec.
+- `docs/development-workflow.md` describes spawned-thread and per-thread Simulator workflow.
+- `docs/prototype-plan.md` is the original prototype plan and remains useful background.

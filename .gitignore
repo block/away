@@ -4,4 +4,3 @@ DerivedData/
 *.xcuserdata/
 *.xcuserstate
 .playwright-mcp/
-goose-remote-*.png

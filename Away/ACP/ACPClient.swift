@@ -142,7 +142,7 @@ actor ACPClient {
                     ]
                 ],
                 "clientInfo": [
-                    "name": "away",
+                    "name": "away-ios",
                     "title": "Away",
                     "version": "1.0.0"
                 ]
