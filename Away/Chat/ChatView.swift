@@ -44,14 +44,6 @@ struct ChatView: View {
                 }
             }
 
-            if let error = runtime.errorMessage {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(.horizontal)
-                    .padding(.vertical, 6)
-            }
-
             ComposerView(
                 text: Binding(
                     get: { model.draftBySession[sessionID] ?? "" },
