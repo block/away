@@ -93,6 +93,38 @@ struct SessionSummary: Identifiable, Equatable, Sendable {
         self.isWorking = false
     }
 
+    init?(sessionID: String, sessionInfoUpdate update: ACPUpdate) {
+        guard update.kind == "session_info_update" else { return nil }
+
+        let meta = update.raw["_meta"]?.objectValue
+        self.id = sessionID
+        self.title = update.raw["title"]?.stringValue ?? "Untitled session"
+        self.subtitle = meta?["lastMessageSnippet"]?.stringValue
+        self.cwd = update.raw["cwd"]?.stringValue
+            ?? update.raw["workingDirectory"]?.stringValue
+            ?? update.raw["projectPath"]?.stringValue
+        self.updatedAt = update.updatedAt
+        self.createdAt = ISO8601DateParsing.parse(meta?["createdAt"]?.stringValue)
+            ?? ISO8601DateParsing.parse(update.raw["createdAt"]?.stringValue)
+        self.lastMessageAt = update.lastMessageAt
+        self.archivedAt = ISO8601DateParsing.parse(meta?["archivedAt"]?.stringValue)
+        self.providerID = meta?["providerId"]?.stringValue
+        self.modelID = meta?["modelId"]?.stringValue
+        self.personaID = meta?["personaId"]?.stringValue
+        if let messageCount = meta?["messageCount"]?.intValue {
+            self.messageCount = messageCount
+            self.hasMessageCount = true
+        } else {
+            self.messageCount = 0
+            self.hasMessageCount = false
+        }
+        if case .some(.some) = update.activeRunID {
+            self.isWorking = true
+        } else {
+            self.isWorking = false
+        }
+    }
+
     static func isMoreRecent(_ lhs: SessionSummary, than rhs: SessionSummary) -> Bool {
         switch (lhs.activityAt, rhs.activityAt) {
         case (.some(let left), .some(let right)) where left != right:

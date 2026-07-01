@@ -543,6 +543,7 @@ final class AppModel {
                 messagesBySession[sessionID] = reducer.messages
                 runtimeBySession[sessionID] = reducer.runtime
             }
+            insertSessionIfNeeded(sessionID: sessionID, from: sessionNotifications)
             patchSessionMetadata(
                 sessionID: sessionID,
                 from: mergedResult,
@@ -764,6 +765,17 @@ final class AppModel {
             return listedSession.preservingStableActivity(from: existing)
         }
         .sorted(by: SessionSummary.isMoreRecent)
+    }
+
+    private func insertSessionIfNeeded(sessionID: String, from notifications: [ACPNotification]) {
+        guard !sessions.contains(where: { $0.id == sessionID }) else { return }
+        guard let summary = notifications.compactMap({ notification in
+            SessionSummary(sessionID: sessionID, sessionInfoUpdate: notification.update)
+        }).last else {
+            return
+        }
+        sessions.append(summary)
+        sessions.sort(by: SessionSummary.isMoreRecent)
     }
 
     private func patchSessionMetadata(

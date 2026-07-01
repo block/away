@@ -497,6 +497,48 @@ final class ExportedSessionSnapshotTests: XCTestCase {
     }
 
     @MainActor
+    func testExternalSessionInfoUpdateInsertsUnknownSession() throws {
+        let existingActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let newSessionActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(
+                id: "existing",
+                title: "Existing",
+                updatedAt: existingActivity,
+                lastMessageAt: existingActivity,
+                messageCount: 2
+            )
+        ]
+
+        model.appendPendingNotificationsForTesting([
+            ACPNotification(
+                sessionID: "external-new",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "session_info_update",
+                    "title": "New Goose2 chat",
+                    "updatedAt": .string("2026-06-30T21:00:00Z"),
+                    "_meta": [
+                        "createdAt": .string("2026-06-30T20:59:00Z"),
+                        "lastMessageAt": .string("2026-06-30T21:00:00Z"),
+                        "lastMessageSnippet": "Draft from Goose2",
+                        "messageCount": 1
+                    ]
+                ])
+            )
+        ])
+
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: nil)
+
+        XCTAssertEqual(model.sessions.map(\.id), ["external-new", "existing"])
+        let inserted = try XCTUnwrap(model.sessions.first)
+        XCTAssertEqual(inserted.title, "New Goose2 chat")
+        XCTAssertEqual(inserted.subtitle, "Draft from Goose2")
+        XCTAssertEqual(inserted.lastMessageAt, newSessionActivity)
+        XCTAssertEqual(inserted.messageCount, 1)
+    }
+
+    @MainActor
     func testAuthoritativeReplayDoesNotRefreshSessionActivityTimestamp() throws {
         let olderActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
         let newerActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
