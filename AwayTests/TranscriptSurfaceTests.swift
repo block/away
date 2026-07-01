@@ -342,6 +342,50 @@ final class TranscriptSurfaceTests: XCTestCase {
         XCTAssertEqual(failedGroup.title, "reviewed files (3 steps)")
     }
 
+    func testToolGroupPresentationSeparatesStructuredTitleAndCountBadge() {
+        let activeGroup = ToolActivityGroup(
+            id: "active",
+            tools: [
+                makeTool(id: "tool-1", name: "Read", status: "completed", arguments: ["path": "/tmp/one.md"]),
+                makeTool(id: "tool-2", name: "Read", status: "in_progress", arguments: ["path": "/tmp/two.md"])
+            ],
+            isExpanded: false
+        )
+        let summarizedGroup = ToolActivityGroup(
+            id: "summary",
+            tools: [
+                makeTool(
+                    id: "tool-1",
+                    name: "shell",
+                    arguments: ["command": "sq agent-tools slack search"],
+                    chainSummary: ToolActivityChainSummary(summary: "checked slack tooling help", count: 8)
+                ),
+                makeTool(id: "tool-2", name: "shell", arguments: ["command": "date"])
+            ],
+            isExpanded: false
+        )
+        let fallbackGroup = ToolActivityGroup(
+            id: "fallback",
+            tools: [
+                makeTool(id: "tool-1", name: "fetch", arguments: ["url": "https://example.com/one"]),
+                makeTool(id: "tool-2", name: "fetch", arguments: ["url": "https://example.com/two"])
+            ],
+            isExpanded: false
+        )
+
+        XCTAssertEqual(activeGroup.compactTitle, "working through")
+        XCTAssertEqual(activeGroup.countBadgeText, "2")
+        XCTAssertEqual(activeGroup.title, "working through 2 steps")
+
+        XCTAssertEqual(summarizedGroup.compactTitle, "checked slack tooling help")
+        XCTAssertEqual(summarizedGroup.countBadgeText, "8")
+        XCTAssertEqual(summarizedGroup.title, "checked slack tooling help (8 steps)")
+
+        XCTAssertEqual(fallbackGroup.compactTitle, "checked resources")
+        XCTAssertEqual(fallbackGroup.countBadgeText, "2")
+        XCTAssertEqual(fallbackGroup.title, "checked resources (2 steps)")
+    }
+
     func testToolGroupFallbackSummaryCategories() {
         let reviewedFiles = ToolActivityGroup(
             id: "reviewed",
