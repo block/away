@@ -157,7 +157,7 @@ final class AppModel {
 
         do {
             let listed = try await client.listSessions()
-            sessions = listed.sorted(by: SessionSummary.isMoreRecent)
+            replaceSessions(with: listed)
             errorMessage = nil
             connectionState = .connected
         } catch {
@@ -404,7 +404,7 @@ final class AppModel {
         )
 
         if let lastText = snapshot.visibleMessages.compactMap(\.plainText).last {
-            updateSessionActivity(sessionID: sessionID, subtitle: sessionPreview(from: lastText))
+            updateSessionPreview(sessionID: sessionID, subtitle: sessionPreview(from: lastText))
         }
     }
 
@@ -543,7 +543,11 @@ final class AppModel {
                 messagesBySession[sessionID] = reducer.messages
                 runtimeBySession[sessionID] = reducer.runtime
             }
-            patchSessionMetadata(sessionID: sessionID, from: mergedResult)
+            patchSessionMetadata(
+                sessionID: sessionID,
+                from: mergedResult,
+                isAuthoritativeReplay: sessionID == authoritativeReplaySessionID
+            )
         }
 
         postBackgroundNotifications(assistantNotifications)
@@ -616,7 +620,7 @@ final class AppModel {
         reducer.appendLocalUserMessage(id: id, text: text)
         messagesBySession[sessionID] = reducer.messages
         runtimeBySession[sessionID] = reducer.runtime
-        updateSessionActivity(sessionID: sessionID, subtitle: text)
+        recordSessionMessageActivity(sessionID: sessionID, subtitle: text)
     }
 
     private func queuePrompt(id: String, text: String, for sessionID: String) {
@@ -751,7 +755,22 @@ final class AppModel {
         }
     }
 
-    private func patchSessionMetadata(sessionID: String, from result: TranscriptApplyResult) {
+    private func replaceSessions(with listed: [SessionSummary]) {
+        let existingByID = Dictionary(sessions.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        sessions = listed.map { listedSession in
+            guard let existing = existingByID[listedSession.id] else {
+                return listedSession
+            }
+            return listedSession.preservingStableActivity(from: existing)
+        }
+        .sorted(by: SessionSummary.isMoreRecent)
+    }
+
+    private func patchSessionMetadata(
+        sessionID: String,
+        from result: TranscriptApplyResult,
+        isAuthoritativeReplay: Bool
+    ) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
         if let title = result.sessionTitle {
             sessions[index].title = title
@@ -759,14 +778,48 @@ final class AppModel {
         if let subtitle = result.subtitle {
             sessions[index].subtitle = subtitle
         }
-        sessions[index].updatedAt = Date()
+        var didUpdateActivity = false
+        if let lastMessageAt = result.lastMessageAt {
+            applyMessageActivity(lastMessageAt, to: &sessions[index])
+            didUpdateActivity = true
+        }
+        if let updatedAt = result.updatedAt,
+           result.lastMessageAt != nil || (result.hasMessageActivity && !isAuthoritativeReplay) {
+            if sessions[index].updatedAt.map({ updatedAt > $0 }) ?? true {
+                sessions[index].updatedAt = updatedAt
+            }
+        }
+        if result.hasMessageActivity, !isAuthoritativeReplay {
+            let observedAt = Date()
+            let activityAt = result.lastMessageAt.map { max($0, observedAt) } ?? observedAt
+            applyMessageActivity(activityAt, to: &sessions[index])
+            didUpdateActivity = true
+        }
         sessions[index].isWorking = runtimeBySession[sessionID]?.activeRunID != nil
+        if didUpdateActivity {
+            sessions.sort(by: SessionSummary.isMoreRecent)
+        }
     }
 
-    private func updateSessionActivity(sessionID: String, subtitle: String) {
+    private func updateSessionPreview(sessionID: String, subtitle: String) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
         sessions[index].subtitle = subtitle
-        sessions[index].updatedAt = Date()
+    }
+
+    private func recordSessionMessageActivity(sessionID: String, subtitle: String) {
+        guard let index = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+        sessions[index].subtitle = subtitle
+        applyMessageActivity(Date(), to: &sessions[index])
+        sessions.sort(by: SessionSummary.isMoreRecent)
+    }
+
+    private func applyMessageActivity(_ date: Date, to session: inout SessionSummary) {
+        if session.lastMessageAt.map({ date > $0 }) ?? true {
+            session.lastMessageAt = date
+        }
+        if session.updatedAt.map({ date > $0 }) ?? true {
+            session.updatedAt = date
+        }
     }
 
     private func title(for sessionID: String) -> String {
@@ -801,6 +854,10 @@ extension AppModel {
 
     func flushPendingNotificationsForTesting(authoritativeReplaySessionID: String?) {
         flushPendingNotifications(authoritativeReplaySessionID: authoritativeReplaySessionID)
+    }
+
+    func replaceSessionsForTesting(with listed: [SessionSummary]) {
+        replaceSessions(with: listed)
     }
 
     func queuePromptForTesting(id: String, text: String, for sessionID: String) {

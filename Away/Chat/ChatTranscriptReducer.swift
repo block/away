@@ -70,8 +70,10 @@ struct ChatTranscriptReducer {
                     if shouldNotify {
                         result.assistantNotification = AssistantNotification(messageID: messageID, preview: text)
                     }
+                    result.hasMessageActivity = true
                 } else if let image = imageContent(from: content) {
                     appendContent(.image(data: image.data, mimeType: image.mimeType), to: messageID)
+                    result.hasMessageActivity = true
                 }
             }
 
@@ -83,6 +85,7 @@ struct ChatTranscriptReducer {
                 let messageID = update.messageID ?? UUID().uuidString
                 appendUserText(text, messageID: messageID)
                 result.subtitle = text
+                result.hasMessageActivity = true
             }
 
         case "tool_call":
@@ -94,15 +97,19 @@ struct ChatTranscriptReducer {
             )
             appendContent(.tool(tool), to: messageID)
             result.subtitle = "Tool \(tool.status): \(tool.name)"
+            result.hasMessageActivity = true
 
         case "tool_call_update":
             if let toolID = update.toolCallID {
                 updateTool(toolID: toolID, update: update)
                 result.subtitle = "Tool \(update.status ?? "updated")"
+                result.hasMessageActivity = true
             }
 
         case "session_info_update":
             result.sessionTitle = update.raw["title"]?.stringValue
+            result.updatedAt = update.updatedAt
+            result.lastMessageAt = update.lastMessageAt
             if let activeRunID = update.activeRunID, activeRunID == nil {
                 finishStreamingMessage()
             }
@@ -308,11 +315,30 @@ struct TranscriptApplyResult: Equatable, Sendable {
     var subtitle: String?
     var sessionTitle: String?
     var assistantNotification: AssistantNotification?
+    var updatedAt: Date?
+    var lastMessageAt: Date?
+    var hasMessageActivity = false
 
     mutating func merge(_ other: TranscriptApplyResult) {
         subtitle = other.subtitle ?? subtitle
         sessionTitle = other.sessionTitle ?? sessionTitle
         assistantNotification = other.assistantNotification ?? assistantNotification
+        updatedAt = latest(updatedAt, other.updatedAt)
+        lastMessageAt = latest(lastMessageAt, other.lastMessageAt)
+        hasMessageActivity = hasMessageActivity || other.hasMessageActivity
+    }
+
+    private func latest(_ lhs: Date?, _ rhs: Date?) -> Date? {
+        switch (lhs, rhs) {
+        case (.some(let left), .some(let right)):
+            return max(left, right)
+        case (.some(let left), .none):
+            return left
+        case (.none, .some(let right)):
+            return right
+        case (.none, .none):
+            return nil
+        }
     }
 }
 

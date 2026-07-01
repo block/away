@@ -459,9 +459,384 @@ final class ExportedSessionSnapshotTests: XCTestCase {
         XCTAssertFalse(subtitle.contains("\n"))
     }
 
+    @MainActor
+    func testPublishingSnapshotDoesNotRefreshSessionActivityTimestamp() throws {
+        let olderActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let newerActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(
+                id: "newer",
+                title: "Newer",
+                updatedAt: newerActivity,
+                lastMessageAt: newerActivity,
+                messageCount: 2
+            ),
+            SessionSummary(
+                id: "viewed",
+                title: "Viewed",
+                updatedAt: olderActivity,
+                lastMessageAt: olderActivity,
+                messageCount: 4
+            )
+        ]
+        let snapshot = ExportedSessionSnapshot(
+            visibleMessages: [
+                ChatMessage(id: "tail", role: .assistant, content: [.text("loaded preview")])
+            ],
+            earlierMessages: []
+        )
+
+        model.publishSnapshotForTesting(snapshot, for: "viewed")
+
+        XCTAssertEqual(model.sessions.map(\.id), ["newer", "viewed"])
+        let viewed = try XCTUnwrap(model.sessions.first { $0.id == "viewed" })
+        XCTAssertEqual(viewed.subtitle, "loaded preview")
+        XCTAssertEqual(viewed.updatedAt, olderActivity)
+        XCTAssertEqual(viewed.lastMessageAt, olderActivity)
+    }
+
+    @MainActor
+    func testAuthoritativeReplayDoesNotRefreshSessionActivityTimestamp() throws {
+        let olderActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let newerActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let viewedUpdatedAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T22:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(
+                id: "newer",
+                title: "Newer",
+                updatedAt: newerActivity,
+                lastMessageAt: newerActivity,
+                messageCount: 2
+            ),
+            SessionSummary(
+                id: "viewed",
+                title: "Viewed",
+                updatedAt: olderActivity,
+                lastMessageAt: olderActivity,
+                messageCount: 4
+            )
+        ]
+        model.appendPendingNotificationsForTesting([
+            ACPNotification(
+                sessionID: "viewed",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "session_info_update",
+                    "updatedAt": .string("2026-06-30T22:00:00Z")
+                ])
+            ),
+            notification(
+                kind: "agent_message_chunk",
+                messageID: "loaded",
+                text: "authoritative preview",
+                sessionID: "viewed"
+            )
+        ])
+
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: "viewed")
+
+        XCTAssertEqual(model.sessions.map(\.id), ["newer", "viewed"])
+        let viewed = try XCTUnwrap(model.sessions.first { $0.id == "viewed" })
+        XCTAssertEqual(viewed.subtitle, "authoritative preview")
+        XCTAssertEqual(viewed.updatedAt, olderActivity)
+        XCTAssertEqual(viewed.lastMessageAt, olderActivity)
+        XCTAssertNotEqual(viewed.updatedAt, viewedUpdatedAt)
+    }
+
+    @MainActor
+    func testLiveMessageActivityMovesSessionByLastMessageTimestamp() throws {
+        let olderActivity = Date().addingTimeInterval(-7_200)
+        let newerActivity = Date().addingTimeInterval(-3_600)
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(
+                id: "newer",
+                title: "Newer",
+                updatedAt: newerActivity,
+                lastMessageAt: newerActivity,
+                messageCount: 2
+            ),
+            SessionSummary(
+                id: "active",
+                title: "Active",
+                updatedAt: olderActivity,
+                lastMessageAt: olderActivity,
+                messageCount: 4
+            )
+        ]
+        model.appendPendingNotificationsForTesting([
+            notification(
+                kind: "agent_message_chunk",
+                messageID: "live",
+                text: "fresh message",
+                sessionID: "active"
+            )
+        ])
+
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: nil)
+
+        XCTAssertEqual(model.sessions.map(\.id), ["active", "newer"])
+        let active = try XCTUnwrap(model.sessions.first)
+        XCTAssertEqual(active.subtitle, "fresh message")
+        XCTAssertGreaterThan(active.lastMessageAt ?? .distantPast, newerActivity)
+    }
+
+    @MainActor
+    func testLiveMessageActivityUsesObservedTimeWhenServerLastMessageAtIsStale() throws {
+        let staleServerActivity = Date().addingTimeInterval(-7_200)
+        let newerActivity = Date().addingTimeInterval(-3_600)
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(
+                id: "newer",
+                title: "Newer",
+                updatedAt: newerActivity,
+                lastMessageAt: newerActivity,
+                messageCount: 2
+            ),
+            SessionSummary(
+                id: "streaming",
+                title: "Streaming",
+                updatedAt: staleServerActivity,
+                lastMessageAt: staleServerActivity,
+                messageCount: 4
+            )
+        ]
+        model.appendPendingNotificationsForTesting([
+            ACPNotification(
+                sessionID: "streaming",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "session_info_update",
+                    "_meta": [
+                        "lastMessageAt": .string(ISO8601DateFormatter().string(from: staleServerActivity))
+                    ]
+                ])
+            ),
+            notification(
+                kind: "agent_message_chunk",
+                messageID: "live",
+                text: "fresh message",
+                sessionID: "streaming"
+            )
+        ])
+
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: nil)
+
+        XCTAssertEqual(model.sessions.map(\.id), ["streaming", "newer"])
+        XCTAssertGreaterThan(model.sessions.first?.lastMessageAt ?? .distantPast, newerActivity)
+    }
+
+    @MainActor
+    func testMetadataOnlyUpdatedAtDoesNotRefreshSessionActivityTimestamp() throws {
+        let olderActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let newerActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let metadataUpdatedAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T22:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(id: "newer", title: "Newer", updatedAt: newerActivity, messageCount: 2),
+            SessionSummary(id: "viewed", title: "Viewed", updatedAt: olderActivity, messageCount: 4)
+        ]
+        model.appendPendingNotificationsForTesting([
+            ACPNotification(
+                sessionID: "viewed",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "session_info_update",
+                    "updatedAt": .string("2026-06-30T22:00:00Z")
+                ])
+            )
+        ])
+
+        model.flushPendingNotificationsForTesting(authoritativeReplaySessionID: nil)
+
+        XCTAssertEqual(model.sessions.map(\.id), ["newer", "viewed"])
+        XCTAssertEqual(model.sessions.first { $0.id == "viewed" }?.updatedAt, olderActivity)
+        XCTAssertNotEqual(model.sessions.first { $0.id == "viewed" }?.updatedAt, metadataUpdatedAt)
+    }
+
+    @MainActor
+    func testSessionListRefreshPreservesFallbackUpdatedAtWhenMessageCountIsUnchanged() throws {
+        let olderActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let newerActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let viewedUpdatedAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T22:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(id: "newer", title: "Newer", updatedAt: newerActivity, messageCount: 2),
+            SessionSummary(id: "viewed", title: "Viewed", updatedAt: olderActivity, messageCount: 4)
+        ]
+
+        model.replaceSessionsForTesting(with: [
+            SessionSummary(id: "viewed", title: "Viewed", updatedAt: viewedUpdatedAt, messageCount: 4),
+            SessionSummary(id: "newer", title: "Newer", updatedAt: newerActivity, messageCount: 2)
+        ])
+
+        XCTAssertEqual(model.sessions.map(\.id), ["newer", "viewed"])
+        XCTAssertEqual(model.sessions.first { $0.id == "viewed" }?.updatedAt, olderActivity)
+    }
+
+    @MainActor
+    func testSessionListRefreshOrdersByLastMessageAtBeforeUpdatedAt() throws {
+        let olderLastMessageAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let newerLastMessageAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let newerGenericUpdate = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T23:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+
+        model.replaceSessionsForTesting(with: [
+            SessionSummary(
+                id: "generic-newer",
+                title: "Generic newer",
+                updatedAt: newerGenericUpdate,
+                lastMessageAt: olderLastMessageAt,
+                messageCount: 4
+            ),
+            SessionSummary(
+                id: "message-newer",
+                title: "Message newer",
+                updatedAt: olderLastMessageAt,
+                lastMessageAt: newerLastMessageAt,
+                messageCount: 4
+            )
+        ])
+
+        XCTAssertEqual(model.sessions.map(\.id), ["message-newer", "generic-newer"])
+    }
+
+    @MainActor
+    func testSessionListRefreshKeepsNewerLocalLastMessageAt() throws {
+        let staleServerLastMessageAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let competingLastMessageAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let localLastMessageAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T22:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(
+                id: "active",
+                title: "Active",
+                updatedAt: localLastMessageAt,
+                lastMessageAt: localLastMessageAt,
+                messageCount: 4
+            ),
+            SessionSummary(
+                id: "competing",
+                title: "Competing",
+                updatedAt: competingLastMessageAt,
+                lastMessageAt: competingLastMessageAt,
+                messageCount: 4
+            )
+        ]
+
+        model.replaceSessionsForTesting(with: [
+            SessionSummary(
+                id: "active",
+                title: "Active",
+                updatedAt: staleServerLastMessageAt,
+                lastMessageAt: staleServerLastMessageAt,
+                messageCount: 4
+            ),
+            SessionSummary(
+                id: "competing",
+                title: "Competing",
+                updatedAt: competingLastMessageAt,
+                lastMessageAt: competingLastMessageAt,
+                messageCount: 4
+            )
+        ])
+
+        XCTAssertEqual(model.sessions.map(\.id), ["active", "competing"])
+        XCTAssertEqual(model.sessions.first?.lastMessageAt, localLastMessageAt)
+    }
+
+    @MainActor
+    func testSessionListRefreshAcceptsServerLastMessageAtWhenMessageCountChanges() throws {
+        let serverLastMessageAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let competingLastMessageAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let localLastMessageAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T22:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(
+                id: "active",
+                title: "Active",
+                updatedAt: localLastMessageAt,
+                lastMessageAt: localLastMessageAt,
+                messageCount: 4
+            ),
+            SessionSummary(
+                id: "competing",
+                title: "Competing",
+                updatedAt: competingLastMessageAt,
+                lastMessageAt: competingLastMessageAt,
+                messageCount: 4
+            )
+        ]
+
+        model.replaceSessionsForTesting(with: [
+            SessionSummary(
+                id: "active",
+                title: "Active",
+                updatedAt: serverLastMessageAt,
+                lastMessageAt: serverLastMessageAt,
+                messageCount: 5
+            ),
+            SessionSummary(
+                id: "competing",
+                title: "Competing",
+                updatedAt: competingLastMessageAt,
+                lastMessageAt: competingLastMessageAt,
+                messageCount: 4
+            )
+        ])
+
+        XCTAssertEqual(model.sessions.map(\.id), ["competing", "active"])
+        XCTAssertEqual(model.sessions.first { $0.id == "active" }?.lastMessageAt, serverLastMessageAt)
+    }
+
+    @MainActor
+    func testSessionListRefreshUsesFallbackUpdatedAtWhenMessageCountChanges() throws {
+        let olderActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+        let newerActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let messageActivity = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T22:00:00Z"))
+        let model = AppModel(connectionConfig: makeTestConnectionConfig())
+        model.sessions = [
+            SessionSummary(id: "newer", title: "Newer", updatedAt: newerActivity, messageCount: 2),
+            SessionSummary(
+                id: "changed",
+                title: "Changed",
+                updatedAt: olderActivity,
+                lastMessageAt: olderActivity,
+                messageCount: 4
+            )
+        ]
+
+        model.replaceSessionsForTesting(with: [
+            SessionSummary(id: "changed", title: "Changed", updatedAt: messageActivity, messageCount: 5),
+            SessionSummary(id: "newer", title: "Newer", updatedAt: newerActivity, messageCount: 2)
+        ])
+
+        XCTAssertEqual(model.sessions.map(\.id), ["changed", "newer"])
+        XCTAssertEqual(model.sessions.first?.updatedAt, messageActivity)
+    }
+
     private func notification(kind: String, messageID: String, text: String) -> ACPNotification {
         ACPNotification(
             sessionID: "s1",
+            update: ACPUpdate(raw: [
+                "sessionUpdate": .string(kind),
+                "messageId": .string(messageID),
+                "content": [
+                    "type": "text",
+                    "text": .string(text)
+                ]
+            ])
+        )
+    }
+
+    private func notification(
+        kind: String,
+        messageID: String,
+        text: String,
+        sessionID: String
+    ) -> ACPNotification {
+        ACPNotification(
+            sessionID: sessionID,
             update: ACPUpdate(raw: [
                 "sessionUpdate": .string(kind),
                 "messageId": .string(messageID),

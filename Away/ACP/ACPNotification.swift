@@ -53,6 +53,16 @@ struct ACPUpdate: Equatable, Sendable {
         }
         return goose["activeRunId"]?.stringValue
     }
+
+    var updatedAt: Date? {
+        ISO8601DateParsing.parse(raw["updatedAt"]?.stringValue)
+    }
+
+    var lastMessageAt: Date? {
+        let meta = raw["_meta"]?.objectValue
+        return ISO8601DateParsing.parse(meta?["lastMessageAt"]?.stringValue)
+            ?? ISO8601DateParsing.parse(raw["lastMessageAt"]?.stringValue)
+    }
 }
 
 struct ACPEnvelope: Codable, Equatable, Sendable {

@@ -13,6 +13,7 @@ struct SessionSummary: Identifiable, Equatable, Sendable {
     var modelID: String?
     var personaID: String?
     var messageCount: Int
+    var hasMessageCount: Bool
     var isWorking: Bool
 
     var displayTitle: String {
@@ -36,6 +37,7 @@ struct SessionSummary: Identifiable, Equatable, Sendable {
         modelID: String? = nil,
         personaID: String? = nil,
         messageCount: Int = 0,
+        hasMessageCount: Bool = true,
         isWorking: Bool = false
     ) {
         self.id = id
@@ -50,6 +52,7 @@ struct SessionSummary: Identifiable, Equatable, Sendable {
         self.modelID = modelID
         self.personaID = personaID
         self.messageCount = messageCount
+        self.hasMessageCount = hasMessageCount
         self.isWorking = isWorking
     }
 
@@ -80,7 +83,13 @@ struct SessionSummary: Identifiable, Equatable, Sendable {
         self.providerID = meta?["providerId"]?.stringValue
         self.modelID = meta?["modelId"]?.stringValue
         self.personaID = meta?["personaId"]?.stringValue
-        self.messageCount = meta?["messageCount"]?.intValue ?? 0
+        if let messageCount = meta?["messageCount"]?.intValue {
+            self.messageCount = messageCount
+            self.hasMessageCount = true
+        } else {
+            self.messageCount = 0
+            self.hasMessageCount = false
+        }
         self.isWorking = false
     }
 
@@ -95,5 +104,35 @@ struct SessionSummary: Identifiable, Equatable, Sendable {
         default:
             return lhs.id > rhs.id
         }
+    }
+
+    func preservingStableActivity(from existing: SessionSummary) -> SessionSummary {
+        var merged = self
+        if let lastMessageAt {
+            if let existingLastMessageAt = existing.lastMessageAt,
+               hasMessageCount,
+               existing.hasMessageCount,
+               messageCount == existing.messageCount,
+               existingLastMessageAt > lastMessageAt {
+                merged.lastMessageAt = existingLastMessageAt
+            }
+            return merged
+        }
+
+        guard hasMessageCount,
+              existing.hasMessageCount,
+              messageCount == existing.messageCount
+        else {
+            return merged
+        }
+
+        if let existingLastMessageAt = existing.lastMessageAt {
+            merged.lastMessageAt = existingLastMessageAt
+        }
+        if existing.lastMessageAt == nil,
+           existing.updatedAt != nil {
+            merged.updatedAt = existing.updatedAt
+        }
+        return merged
     }
 }

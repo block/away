@@ -306,6 +306,29 @@ final class ChatTranscriptReducerTests: XCTestCase {
         XCTAssertEqual(reducer.runtime.activeRunID, "run-1")
     }
 
+    func testSessionInfoUpdateExtractsServerTimestamps() throws {
+        var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
+        let updatedAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T21:00:00Z"))
+        let lastMessageAt = try XCTUnwrap(ISO8601DateParsing.parse("2026-06-30T20:00:00Z"))
+
+        let result = reducer.apply(
+            ACPNotification(
+                sessionID: "s1",
+                update: ACPUpdate(raw: [
+                    "sessionUpdate": "session_info_update",
+                    "updatedAt": "2026-06-30T21:00:00Z",
+                    "_meta": [
+                        "lastMessageAt": "2026-06-30T20:00:00Z"
+                    ]
+                ])
+            )
+        )
+
+        XCTAssertEqual(result.updatedAt, updatedAt)
+        XCTAssertEqual(result.lastMessageAt, lastMessageAt)
+        XCTAssertFalse(result.hasMessageActivity)
+    }
+
     func testSessionInfoUpdateWithNullActiveRunIDEndsStreaming() {
         var reducer = ChatTranscriptReducer(messages: [], runtime: SessionRuntime())
 
